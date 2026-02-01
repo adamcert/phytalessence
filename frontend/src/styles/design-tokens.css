@@ -1,0 +1,122 @@
+/* ========================================
+   PHYTALESSENCE DESIGN SYSTEM
+   Modern Glass Premium Theme
+   ======================================== */
+
+@theme {
+  /* ===== COLOR PALETTE ===== */
+
+  /* Primary - Gold (Phytalessence) */
+  --color-primary-50: #fdfcf9;
+  --color-primary-100: #f9f5eb;
+  --color-primary-200: #f0e6cf;
+  --color-primary-300: #e4d4ad;
+  --color-primary-400: #d9c496;
+  --color-primary-500: #cfb984;
+  --color-primary-600: #b9a36d;
+  --color-primary-700: #9a8656;
+  --color-primary-800: #7d6c45;
+  --color-primary-900: #655839;
+  --color-primary: #cfb984;
+
+  /* Accent - Forest Green (Phytalessence) */
+  --color-accent-50: #f4f6f4;
+  --color-accent-100: #e5e9e6;
+  --color-accent-200: #c9d0cb;
+  --color-accent-300: #a3afa6;
+  --color-accent-400: #7a8a7d;
+  --color-accent-500: #5d6e60;
+  --color-accent-600: #4e5c50;
+  --color-accent-700: #414c43;
+  --color-accent-800: #373f38;
+  --color-accent-900: #2f352f;
+  --color-accent: #4e5c50;
+
+  /* Success */
+  --color-success-50: #f0fdf4;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success: #22c55e;
+
+  /* Warning */
+  --color-warning-50: #fffbeb;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning: #f59e0b;
+
+  /* Error */
+  --color-error-50: #fef2f2;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  --color-error: #ef4444;
+
+  /* ===== TYPOGRAPHY ===== */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+  /* ===== SPACING ===== */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --radius-full: 9999px;
+}
+
+/* ===== LIGHT THEME (Default) ===== */
+:root {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.7);
+  --bg-glass-hover: rgba(255, 255, 255, 0.85);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #ffffff;
+
+  --border-primary: #e2e8f0;
+  --border-secondary: #cbd5e1;
+  --border-glass: rgba(255, 255, 255, 0.3);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 40px rgba(207, 185, 132, 0.2);
+  --shadow-glow-accent: 0 0 40px rgba(78, 92, 80, 0.2);
+
+  --gradient-primary: linear-gradient(135deg, #cfb984 0%, #b9a36d 100%);
+  --gradient-accent: linear-gradient(135deg, #4e5c50 0%, #5d6e60 100%);
+  --gradient-bg: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
+}
+
+/* ===== DARK THEME ===== */
+[data-theme="dark"] {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-glass: rgba(30, 41, 59, 0.8);
+  --bg-glass-hover: rgba(30, 41, 59, 0.95);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #64748b;
+  --text-inverse: #0f172a;
+
+  --border-primary: #334155;
+  --border-secondary: #475569;
+  --border-glass: rgba(255, 255, 255, 0.1);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 40px rgba(207, 185, 132, 0.3);
+  --shadow-glow-accent: 0 0 40px rgba(78, 92, 80, 0.3);
+
+  --gradient-bg: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(30,41,59,0.6) 100%);
+}

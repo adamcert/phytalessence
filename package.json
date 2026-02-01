@@ -1,0 +1,34 @@
+{
+  "name": "phytalessence-crm",
+  "version": "1.0.0",
+  "description": "Phytalessence CRM Loyalty System",
+  "private": true,
+  "scripts": {
+    "dev": "cd backend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd backend && npm run build",
+    "build:all": "npm run build && cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "test": "cd backend && npm test",
+    "lint": "cd backend && npm run lint",
+    "prisma:generate": "cd backend && npm run prisma:generate",
+    "prisma:migrate": "cd backend && npm run prisma:migrate",
+    "prisma:seed": "cd backend && npm run prisma:seed",
+    "prisma:studio": "cd backend && npm run prisma:studio",
+    "setup": "cd backend && npm install && npm run prisma:generate"
+  },
+  "keywords": [
+    "crm",
+    "loyalty",
+    "phytalessence"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  }
+}

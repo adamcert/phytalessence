@@ -1,0 +1,122 @@
+// Prisma Schema for Phytalessence CRM Loyalty System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+enum AdminRole {
+  ADMIN
+  VIEWER
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  sku       String?  @db.VarChar(100)
+  aliases   Json     @default("[]")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+model Transaction {
+  id                 Int               @id @default(autoincrement())
+  ticketId           String            @unique @map("ticket_id") @db.VarChar(100)
+  userEmail          String            @map("user_email") @db.VarChar(191)
+  userName           String?           @map("user_name") @db.VarChar(255)
+  userPhone          String?           @map("user_phone") @db.VarChar(50)
+  totalAmount        Decimal           @map("total_amount") @db.Decimal(10, 2)
+  ticketProducts     Json              @map("ticket_products")
+  ocrProducts        Json?             @map("ocr_products")
+  ocrUsed            Boolean           @default(false) @map("ocr_used")
+  matchedProducts    Json?             @map("matched_products")
+  ticketImageBase64  String?           @map("ticket_image_base64") @db.LongText
+  eligibleAmount     Decimal           @default(0) @map("eligible_amount") @db.Decimal(10, 2)
+  pointsCalculated   Int               @default(0) @map("points_calculated")
+  pointsAwarded      Boolean           @default(false) @map("points_awarded")
+  notificationSent   Boolean           @default(false) @map("notification_sent")
+  snapssResponse     Json?             @map("snapss_response")
+  status             TransactionStatus @default(PENDING)
+  errorMessage       String?           @map("error_message") @db.Text
+  processedAt        DateTime?         @map("processed_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+
+  @@index([userEmail])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model Admin {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique @db.VarChar(191)
+  password    String    @db.VarChar(255)
+  firstName   String?   @map("first_name") @db.VarChar(100)
+  lastName    String?   @map("last_name") @db.VarChar(100)
+  role        AdminRole @default(VIEWER)
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  pointsAdjustments PointsAdjustment[]
+
+  @@map("admins")
+}
+
+model Setting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.VarChar(255)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique @db.VarChar(191)
+  nftId         String?  @map("nft_id") @db.VarChar(100)
+  tokenId       String?  @map("token_id") @db.VarChar(100)
+  currentPoints Int      @default(0) @map("current_points")
+  firstName     String?  @map("first_name") @db.VarChar(100)
+  lastName      String?  @map("last_name") @db.VarChar(100)
+  phone         String?  @db.VarChar(50)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  adjustments   PointsAdjustment[]
+
+  @@map("users")
+}
+
+model PointsAdjustment {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  user          User     @relation(fields: [userId], references: [id])
+  pointsBefore  Int      @map("points_before")
+  pointsAfter   Int      @map("points_after")
+  delta         Int      // positive = added, negative = removed
+  reason        String   @db.Text
+  adminId       Int      @map("admin_id")
+  admin         Admin    @relation(fields: [adminId], references: [id])
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([adminId])
+  @@map("points_adjustments")
+}
