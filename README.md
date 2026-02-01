@@ -58,11 +58,9 @@ npm run dev
 
 ## Credentials par défaut
 
-Après le seed :
-- **Email:** admin@phytalessence.com
-- **Password:** admin123
+Après le seed, un compte admin est créé. Consultez le fichier `backend/prisma/seed.ts` pour les credentials par défaut.
 
-⚠️ Changez ce mot de passe en production !
+⚠️ Changez le mot de passe en production !
 
 ## Structure du projet
 
