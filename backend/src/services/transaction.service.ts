@@ -37,20 +37,21 @@ export const createTransaction = async (
     nftId,
   });
 
-  // Create or update user record with their NFT ID
+  // Create or update user record with their NFT ID and Token ID
   const userEmail = wallet_object.email.toLowerCase();
   await prisma.user.upsert({
     where: { email: userEmail },
     create: {
       email: userEmail,
       nftId,
+      tokenId: nftId, // tokenId is same as nftId for Certhis API
       firstName: wallet_object.first_name || null,
       lastName: wallet_object.last_name || null,
       phone: wallet_object.phone || null,
     },
     update: {
-      // Only update nftId if it's not already set or if we have a new value
-      ...(nftId && { nftId }),
+      // Only update nftId/tokenId if it's not already set or if we have a new value
+      ...(nftId && { nftId, tokenId: nftId }),
       // Update name/phone if provided
       ...(wallet_object.first_name && { firstName: wallet_object.first_name }),
       ...(wallet_object.last_name && { lastName: wallet_object.last_name }),

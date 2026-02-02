@@ -53,3 +53,7 @@ temp/
 
 # Test files
 *.test.ts.snap
+
+# SSH Keys - NE PAS COMMIT
+id_rsa_phytalessence
+id_rsa_phytalessence.pub
