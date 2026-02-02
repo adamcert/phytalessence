@@ -30,10 +30,11 @@ const ticketDataSchema = z.object({
 // NFT object (optional)
 const nftObjectSchema = z.object({
   id: z.number().optional(),
+  nft_id: z.number().optional(), // This is the actual token ID for Certhis API
   collection_object: z.object({
     collection_name: z.string().optional(),
   }).optional(),
-}).optional();
+}).passthrough().optional();
 
 // Ticket image (optional)
 const ticketImageSchema = z.object({

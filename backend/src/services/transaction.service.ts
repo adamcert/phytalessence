@@ -26,7 +26,8 @@ export const createTransaction = async (
   const ticketImageBase64 = ticket_image?.base64 || null;
 
   // Get NFT ID from payload (used for Certhis API)
-  const nftId = nft_object?.id?.toString() || null;
+  // nft_object.nft_id is the actual token ID for Certhis API, not nft_object.id
+  const nftId = (nft_object as any)?.nft_id?.toString() || nft_object?.id?.toString() || null;
 
   logger.info('Creating transaction', {
     ticketId: ticket_data.ticket_id,
