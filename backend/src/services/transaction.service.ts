@@ -2,6 +2,9 @@ import { Transaction, TransactionStatus, Prisma } from '@prisma/client';
 import prisma from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { SnapssWebhookPayload } from '../validators/webhook.validator.js';
+import { ForceMatchInput } from '../validators/transaction.validator.js';
+import { calculatePoints } from './points.service.js';
+import { fetchCerthisPoints, addPointsWithRetry } from './snapss.service.js';
 
 export interface CreateTransactionInput {
   ticketId: string;
@@ -124,4 +127,149 @@ export const deleteTransaction = async (id: number): Promise<void> => {
   await prisma.transaction.delete({
     where: { id },
   });
+};
+
+/**
+ * Force match a product in a transaction
+ * Updates the product as matched, recalculates points, and sends to Certhis
+ */
+export const forceMatchProduct = async (
+  transactionId: number,
+  input: ForceMatchInput,
+  adminEmail: string
+): Promise<Transaction> => {
+  const { productIndex, catalogProductId, note } = input;
+
+  // Get the transaction
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+  });
+
+  if (!transaction) {
+    throw new Error('Transaction non trouvée');
+  }
+
+  // Get the catalog product
+  const catalogProduct = await prisma.product.findUnique({
+    where: { id: catalogProductId },
+  });
+
+  if (!catalogProduct) {
+    throw new Error('Produit catalogue non trouvé');
+  }
+
+  // Parse matchedProducts
+  const matchedProducts = (transaction.matchedProducts as any[]) || [];
+
+  if (productIndex < 0 || productIndex >= matchedProducts.length) {
+    throw new Error('Index produit invalide');
+  }
+
+  const product = matchedProducts[productIndex];
+
+  if (product.matched && !product.forced) {
+    throw new Error('Ce produit est déjà validé');
+  }
+
+  // Calculate the additional eligible amount
+  const additionalAmount = product.ticketProduct.price * product.ticketProduct.quantity;
+
+  // Update the product in the array
+  matchedProducts[productIndex] = {
+    ...product,
+    matched: true,
+    matchedProductId: catalogProduct.id,
+    matchedProductName: catalogProduct.name,
+    eligibleAmount: additionalAmount,
+    matchMethod: 'forced',
+    forced: true,
+    forcedNote: note,
+    forcedBy: adminEmail,
+    forcedAt: new Date().toISOString(),
+  };
+
+  // Recalculate total eligible amount
+  const newEligibleAmount = matchedProducts.reduce(
+    (sum, p) => sum + (p.matched ? p.eligibleAmount : 0),
+    0
+  );
+
+  // Calculate new points
+  const pointsResult = await calculatePoints(newEligibleAmount);
+  const newPoints = pointsResult.roundedPoints;
+
+  // Calculate the delta (additional points to add)
+  const previousPoints = transaction.pointsCalculated || 0;
+  const pointsDelta = newPoints - previousPoints;
+
+  logger.info('Force matching product', {
+    transactionId,
+    productIndex,
+    catalogProductId,
+    catalogProductName: catalogProduct.name,
+    additionalAmount,
+    newEligibleAmount,
+    previousPoints,
+    newPoints,
+    pointsDelta,
+    adminEmail,
+  });
+
+  // Update transaction in database
+  const updatedTransaction = await prisma.transaction.update({
+    where: { id: transactionId },
+    data: {
+      matchedProducts: matchedProducts as Prisma.InputJsonValue,
+      eligibleAmount: new Prisma.Decimal(newEligibleAmount),
+      pointsCalculated: newPoints,
+    },
+  });
+
+  // If there are additional points to add, send to Certhis
+  if (pointsDelta > 0) {
+    // Get user's current points from Certhis (source of truth)
+    const user = await prisma.user.findUnique({
+      where: { email: transaction.userEmail.toLowerCase() },
+    });
+
+    if (user?.tokenId) {
+      const currentCerthisPoints = await fetchCerthisPoints(user.tokenId);
+      const newTotalPoints = currentCerthisPoints + pointsDelta;
+
+      logger.info('Sending forced points to Certhis', {
+        transactionId,
+        userEmail: transaction.userEmail,
+        currentCerthisPoints,
+        pointsDelta,
+        newTotalPoints,
+      });
+
+      const result = await addPointsWithRetry(transaction.userEmail, newTotalPoints);
+
+      if (result.success) {
+        // Update local cache
+        await prisma.user.update({
+          where: { email: transaction.userEmail.toLowerCase() },
+          data: { currentPoints: newTotalPoints },
+        });
+
+        logger.info('Forced points sent successfully', {
+          transactionId,
+          newTotalPoints,
+        });
+      } else {
+        logger.error('Failed to send forced points to Certhis', {
+          transactionId,
+          error: result.error,
+        });
+      }
+    } else {
+      logger.warn('User has no tokenId, cannot send points to Certhis', {
+        transactionId,
+        userEmail: transaction.userEmail,
+      });
+    }
+  }
+
+  return updatedTransaction;
 };

@@ -7,8 +7,9 @@ import {
   transactionIdParamSchema,
   transactionQuerySchema,
   reprocessTransactionSchema,
+  forceMatchSchema,
 } from '../validators/transaction.validator.js';
-import { getTransactionById, updateTransactionStatus, deleteTransaction } from '../services/transaction.service.js';
+import { getTransactionById, updateTransactionStatus, deleteTransaction, forceMatchProduct } from '../services/transaction.service.js';
 import { processTransaction } from '../services/processing.service.js';
 import { logger } from '../utils/logger.js';
 import { AppError } from '../middleware/error.js';
@@ -207,6 +208,43 @@ router.post(
 
       res.json({
         message: 'Transaction retraitée',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/transactions/:id/force-match - Force match a product (ADMIN only)
+router.post(
+  '/:id/force-match',
+  roleMiddleware('ADMIN'),
+  validateParams(transactionIdParamSchema),
+  validateBody(forceMatchSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params as unknown as { id: number };
+      const { productIndex, catalogProductId, note } = req.body;
+      const adminEmail = (req as any).user?.email || 'unknown';
+
+      const transaction = await getTransactionById(id);
+
+      if (!transaction) {
+        throw new AppError('Transaction non trouvée', 404, 'NOT_FOUND');
+      }
+
+      logger.info('Force matching product', {
+        transactionId: id,
+        productIndex,
+        catalogProductId,
+        adminEmail,
+      });
+
+      const result = await forceMatchProduct(id, { productIndex, catalogProductId, note }, adminEmail);
+
+      res.json({
+        message: 'Produit forcé avec succès',
         data: result,
       });
     } catch (error) {

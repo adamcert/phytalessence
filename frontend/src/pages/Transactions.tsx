@@ -28,6 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { exportApi } from '../services/api';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EditPointsModal } from '../components/EditPointsModal';
+import { ForceMatchModal } from '../components/ForceMatchModal';
 
 const statusConfig: Record<TransactionStatus, { label: string; icon: typeof CheckCircle; color: string; bg: string }> = {
   SUCCESS: { label: 'Succes', icon: CheckCircle, color: 'text-success-500', bg: 'bg-success-500/10' },
@@ -125,6 +126,13 @@ export function TransactionsPage() {
 
   // Edit points modal
   const [editPointsUser, setEditPointsUser] = useState<UserGroup | null>(null);
+
+  // Force match modal
+  const [forceMatchData, setForceMatchData] = useState<{
+    transactionId: number;
+    productIndex: number;
+    ticketProduct: { name: string; quantity: number; price: number };
+  } | null>(null);
 
   const fetchTransactions = async (page = 1) => {
     setIsLoading(true);
@@ -672,45 +680,73 @@ export function TransactionsPage() {
                           <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                             {currentTransaction.matchedProducts && currentTransaction.matchedProducts.length > 0 ? (
                               <>
-                                {(currentTransaction.matchedProducts as MatchedProduct[]).map((mp, idx) => (
-                                  <div
-                                    key={idx}
-                                    className={`flex items-center justify-between p-3 rounded-lg border ${
-                                      mp.matched
-                                        ? 'bg-success-500/5 border-success-500/20'
-                                        : 'bg-error-500/5 border-error-500/20'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      {mp.matched ? (
-                                        <CheckCircle className="w-4 h-4 text-success-500 flex-shrink-0" />
-                                      ) : (
-                                        <XCircle className="w-4 h-4 text-error-500 flex-shrink-0" />
-                                      )}
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                                          {mp.ticketProduct.name}
-                                        </p>
-                                        {mp.matched && mp.matchedProductName && (
-                                          <p className="text-xs text-success-600 truncate">
-                                            → {mp.matchedProductName}
-                                            {mp.matchMethod && (
-                                              <span className="ml-1 text-[10px] opacity-70">({mp.matchMethod})</span>
-                                            )}
-                                          </p>
+                                {(currentTransaction.matchedProducts as MatchedProduct[]).map((mp, idx) => {
+                                  const isForced = (mp as any).forced;
+                                  const canForceMatch = isAdmin && !mp.matched;
+
+                                  return (
+                                    <div
+                                      key={idx}
+                                      onClick={() => {
+                                        if (canForceMatch) {
+                                          setForceMatchData({
+                                            transactionId: currentTransaction.id,
+                                            productIndex: idx,
+                                            ticketProduct: mp.ticketProduct,
+                                          });
+                                        }
+                                      }}
+                                      className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                                        isForced
+                                          ? 'bg-orange-500/10 border-orange-500/30'
+                                          : mp.matched
+                                          ? 'bg-success-500/5 border-success-500/20'
+                                          : 'bg-error-500/5 border-error-500/20'
+                                      } ${canForceMatch ? 'cursor-pointer hover:bg-orange-500/10 hover:border-orange-500/30' : ''}`}
+                                    >
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        {isForced ? (
+                                          <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                                        ) : mp.matched ? (
+                                          <CheckCircle className="w-4 h-4 text-success-500 flex-shrink-0" />
+                                        ) : (
+                                          <XCircle className="w-4 h-4 text-error-500 flex-shrink-0" />
                                         )}
-                                        <p className="text-xs text-[var(--text-tertiary)]">
-                                          {mp.ticketProduct.quantity} x {formatCurrency(mp.ticketProduct.price)}
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+                                            {mp.ticketProduct.name}
+                                          </p>
+                                          {mp.matched && mp.matchedProductName && (
+                                            <p className={`text-xs truncate ${isForced ? 'text-orange-500' : 'text-success-600'}`}>
+                                              → {mp.matchedProductName}
+                                              {mp.matchMethod && (
+                                                <span className="ml-1 text-[10px] opacity-70">({mp.matchMethod})</span>
+                                              )}
+                                            </p>
+                                          )}
+                                          {isForced && (mp as any).forcedNote && (
+                                            <p className="text-[10px] text-orange-400/70 truncate">
+                                              Note: {(mp as any).forcedNote}
+                                            </p>
+                                          )}
+                                          <p className="text-xs text-[var(--text-tertiary)]">
+                                            {mp.ticketProduct.quantity} x {formatCurrency(mp.ticketProduct.price)}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="text-right flex-shrink-0 ml-2">
+                                        <p className={`text-sm font-medium ${
+                                          isForced ? 'text-orange-500' : mp.matched ? 'text-success-600' : 'text-[var(--text-tertiary)] line-through'
+                                        }`}>
+                                          {formatCurrency(mp.ticketProduct.price * mp.ticketProduct.quantity)}
                                         </p>
+                                        {canForceMatch && (
+                                          <p className="text-[10px] text-orange-500">Cliquez pour forcer</p>
+                                        )}
                                       </div>
                                     </div>
-                                    <div className="text-right flex-shrink-0 ml-2">
-                                      <p className={`text-sm font-medium ${mp.matched ? 'text-success-600' : 'text-[var(--text-tertiary)] line-through'}`}>
-                                        {formatCurrency(mp.ticketProduct.price * mp.ticketProduct.quantity)}
-                                      </p>
-                                    </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </>
                             ) : currentTransaction.ticketProducts && (currentTransaction.ticketProducts as TicketProduct[]).length > 0 ? (
                               <>
@@ -740,16 +776,27 @@ export function TransactionsPage() {
                           </div>
 
                           {/* Compteur produits */}
-                          {currentTransaction.matchedProducts && currentTransaction.matchedProducts.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-[var(--border-glass)] flex justify-between text-xs">
-                              <span className="text-success-500">
-                                {(currentTransaction.matchedProducts as MatchedProduct[]).filter(m => m.matched).length} comptabilise(s)
-                              </span>
-                              <span className="text-error-500">
-                                {(currentTransaction.matchedProducts as MatchedProduct[]).filter(m => !m.matched).length} non valide(s)
-                              </span>
-                            </div>
-                          )}
+                          {currentTransaction.matchedProducts && currentTransaction.matchedProducts.length > 0 && (() => {
+                            const products = currentTransaction.matchedProducts as MatchedProduct[];
+                            const matched = products.filter(m => m.matched && !(m as any).forced).length;
+                            const forced = products.filter(m => (m as any).forced).length;
+                            const unmatched = products.filter(m => !m.matched).length;
+                            return (
+                              <div className="mt-3 pt-3 border-t border-[var(--border-glass)] flex justify-between text-xs">
+                                <span className="text-success-500">
+                                  {matched} comptabilise(s)
+                                </span>
+                                {forced > 0 && (
+                                  <span className="text-orange-500">
+                                    {forced} force(s)
+                                  </span>
+                                )}
+                                <span className="text-error-500">
+                                  {unmatched} non valide(s)
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -879,6 +926,24 @@ export function TransactionsPage() {
           }
         }}
       />
+
+      {/* Force Match Modal */}
+      {forceMatchData && (
+        <ForceMatchModal
+          isOpen={true}
+          transactionId={forceMatchData.transactionId}
+          productIndex={forceMatchData.productIndex}
+          ticketProduct={forceMatchData.ticketProduct}
+          onClose={() => setForceMatchData(null)}
+          onSuccess={() => {
+            fetchTransactions(pagination.page);
+            // Recharger les details du groupe
+            if (selectedUserGroup) {
+              openUserDetail(selectedUserGroup);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

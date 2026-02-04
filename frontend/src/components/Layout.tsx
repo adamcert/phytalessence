@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   LayoutDashboard,
   Package,
@@ -10,6 +11,8 @@ import {
   LogOut,
   Menu,
   X,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../lib/utils';
@@ -25,6 +28,7 @@ const navigation = [
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -94,6 +98,13 @@ export function Layout() {
               <p className="text-xs text-[var(--text-tertiary)]">{user?.role}</p>
             </div>
             <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-[var(--text-tertiary)] hover:text-primary-500 hover:bg-primary-50 transition-colors"
+              title={theme === 'light' ? 'Mode sombre' : 'Mode clair'}
+            >
+              {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </button>
+            <button
               onClick={() => {
                 logout();
                 setSidebarOpen(false);
@@ -144,6 +155,13 @@ export function Layout() {
                 </p>
                 <p className="text-xs text-[var(--text-tertiary)]">{user?.role}</p>
               </div>
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg text-[var(--text-tertiary)] hover:text-primary-500 hover:bg-primary-50 transition-colors"
+                title={theme === 'light' ? 'Mode sombre' : 'Mode clair'}
+              >
+                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              </button>
               <button
                 onClick={logout}
                 className="p-2 rounded-lg text-[var(--text-tertiary)] hover:text-error-500 hover:bg-error-50 transition-colors"

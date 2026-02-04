@@ -67,7 +67,7 @@ export function EditPointsModal({
       }
     } catch (err) {
       console.error('Error fetching Certhis points:', err);
-      setFetchError('Impossible de recuperer les points Certhis');
+      setFetchError('Impossible de récupérer les points');
       setCerthisPoints(null);
     } finally {
       setIsFetchingPoints(false);
@@ -90,7 +90,7 @@ export function EditPointsModal({
   };
 
   const handleAdjustPoints = async () => {
-    if (pointsToAdjust === 0 || !adjustReason.trim()) return;
+    if (pointsToAdjust === 0 || adjustReason.trim().length < 3) return;
 
     setIsAdjusting(true);
     setAdjustError(null);
@@ -158,12 +158,12 @@ export function EditPointsModal({
 
               <div className="mb-4 p-4 rounded-xl bg-[var(--bg-tertiary)]">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm text-[var(--text-tertiary)]">Points actuels (Certhis)</p>
+                  <p className="text-sm text-[var(--text-tertiary)]">Points actuels</p>
                   <button
                     onClick={fetchCerthisPoints}
                     disabled={isFetchingPoints}
                     className="p-1 rounded hover:bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-purple-500 transition-all disabled:opacity-50"
-                    title="Rafraichir depuis Certhis"
+                    title="Rafraichir"
                   >
                     <RefreshCw className={`w-4 h-4 ${isFetchingPoints ? 'animate-spin' : ''}`} />
                   </button>
@@ -223,7 +223,7 @@ export function EditPointsModal({
 
                 <div>
                   <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
-                    Raison (obligatoire)
+                    Raison (obligatoire, min 3 caractères)
                   </label>
                   <textarea
                     value={adjustReason}
@@ -232,6 +232,9 @@ export function EditPointsModal({
                     rows={3}
                     className="w-full px-4 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-glass)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-purple-500/50 resize-none"
                   />
+                  {adjustReason.trim().length > 0 && adjustReason.trim().length < 3 && (
+                    <p className="text-xs text-orange-500 mt-1">Minimum 3 caractères requis</p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -255,7 +258,7 @@ export function EditPointsModal({
 
                 <button
                   onClick={handleAdjustPoints}
-                  disabled={isAdjusting || pointsToAdjust === 0 || !adjustReason.trim()}
+                  disabled={isAdjusting || pointsToAdjust === 0 || adjustReason.trim().length < 3}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isAdjusting ? (

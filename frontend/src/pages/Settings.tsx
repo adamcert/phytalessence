@@ -254,7 +254,7 @@ export function SettingsPage() {
                               onChange={(e) => setEditedValues({ ...editedValues, [setting.key]: e.target.value })}
                               disabled={!isAdmin}
                               rows={3}
-                              className="flex-1 px-4 py-2.5 bg-white dark:bg-accent-800 border-2 border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] font-medium focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all resize-none"
+                              className="flex-1 px-4 py-3 bg-[var(--bg-tertiary)] border border-[var(--border-glass)] rounded-xl text-[var(--text-primary)] font-medium placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 focus:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 resize-none hover:border-primary-500/50"
                               placeholder="Ex: Felicitations ! Vous avez gagne {points} points."
                             />
                             {isAdmin && isModified(setting) && (
@@ -752,7 +752,7 @@ function renderSettingInput(
   isAdmin: boolean
 ) {
   const inputType = getSettingType(setting.key);
-  const baseInputClass = "px-4 py-2.5 bg-white dark:bg-accent-800 border-2 border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] font-medium focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all";
+  const baseInputClass = "px-4 py-3 bg-[var(--bg-tertiary)] border border-[var(--border-glass)] rounded-xl text-[var(--text-primary)] font-medium placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 focus:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200";
 
   switch (inputType) {
     case 'select':
@@ -761,7 +761,7 @@ function renderSettingInput(
           value={editedValues[setting.key] || ''}
           onChange={(e) => setEditedValues({ ...editedValues, [setting.key]: e.target.value })}
           disabled={!isAdmin}
-          className={baseInputClass}
+          className={`${baseInputClass} min-w-[240px] cursor-pointer hover:border-primary-500/50`}
         >
           <option value="floor">Arrondi inferieur (floor)</option>
           <option value="ceil">Arrondi superieur (ceil)</option>
@@ -776,7 +776,7 @@ function renderSettingInput(
           onChange={(e) => setEditedValues({ ...editedValues, [setting.key]: e.target.value })}
           disabled={!isAdmin}
           rows={3}
-          className={`${baseInputClass} w-80 resize-none`}
+          className={`${baseInputClass} w-80 resize-none hover:border-primary-500/50`}
           placeholder="Ex: Felicitations ! Vous avez gagne {points} points."
         />
       );
@@ -790,7 +790,7 @@ function renderSettingInput(
           value={editedValues[setting.key] || ''}
           onChange={(e) => setEditedValues({ ...editedValues, [setting.key]: e.target.value })}
           disabled={!isAdmin}
-          className={`${baseInputClass} w-32`}
+          className={`${baseInputClass} w-24 text-center text-lg hover:border-primary-500/50`}
         />
       );
 
@@ -801,7 +801,7 @@ function renderSettingInput(
           value={editedValues[setting.key] || ''}
           onChange={(e) => setEditedValues({ ...editedValues, [setting.key]: e.target.value })}
           disabled={!isAdmin}
-          className={`${baseInputClass} w-40`}
+          className={`${baseInputClass} w-48 hover:border-primary-500/50`}
         />
       );
   }

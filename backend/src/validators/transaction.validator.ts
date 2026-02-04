@@ -20,4 +20,11 @@ export const reprocessTransactionSchema = z.object({
   force: z.boolean().default(false),
 });
 
+export const forceMatchSchema = z.object({
+  productIndex: z.number().int().min(0, 'Index produit invalide'),
+  catalogProductId: z.number().int().positive('ID produit catalogue requis'),
+  note: z.string().min(3, 'Note requise (min 3 caractères)').max(500, 'Note trop longue'),
+});
+
 export type TransactionQuery = z.infer<typeof transactionQuerySchema>;
+export type ForceMatchInput = z.infer<typeof forceMatchSchema>;
