@@ -41,6 +41,7 @@ const isSimilarToPrefix = (word: string, prefix: string): boolean => {
 const ABBREVIATION_MAP: Record<string, string[]> = {
   // Common product abbreviations (3+ letters only)
   'gluc': ['glucosamine'],
+  'cal': ['calcium'],
   'calc': ['calcium'],
   'magn': ['magnesium'],
   'sil': ['silice', 'silicium'],
