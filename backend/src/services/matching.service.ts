@@ -22,8 +22,9 @@ export interface MatchingResult {
   matchRate: number;
 }
 
-// Brand prefixes that indicate Phytalessence products (canonical versions)
-const BRAND_PREFIXES = ['phytaless', 'phytalessence', 'phyta'];
+// Brand prefixes that indicate Phytalessence products
+// IMPORTANT: longest prefix first to avoid partial matches (phytaless before phyta)
+const BRAND_PREFIXES = ['phytalessence', 'phytaless', 'phyta'];
 
 /**
  * Check if a word is similar to a brand prefix (tolerance for OCR errors)
