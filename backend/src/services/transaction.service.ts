@@ -35,12 +35,22 @@ export const createTransaction = async (
   // Determine format and extract amounts
   const isV2 = Array.isArray(ticket_data.matched_products);
   const totalAmount = ticket_data.total_amount ?? ticket_data.total_receipt ?? 0;
-  const rawProducts = isV2
-    ? (ticket_data.matched_products as Prisma.InputJsonValue)
-    : (ticket_data.products as Prisma.InputJsonValue);
-  const productsCount = isV2
-    ? (ticket_data.matched_products?.length ?? 0)
-    : (ticket_data.products?.length ?? 0);
+
+  // For v2: combine matched_products + other_products, tagged with _source
+  let rawProducts: Prisma.InputJsonValue;
+  let productsCount: number;
+  if (isV2) {
+    const allProducts = [
+      ...(ticket_data.matched_products || []).map(p => ({ ...p, _source: 'matched' })),
+      ...(ticket_data.other_products || []).map(p => ({ ...p, _source: 'other' })),
+      ...(ticket_data.potential_products || []).map(p => ({ ...p, _source: 'potential' })),
+    ];
+    rawProducts = allProducts as Prisma.InputJsonValue;
+    productsCount = allProducts.length;
+  } else {
+    rawProducts = ticket_data.products as Prisma.InputJsonValue;
+    productsCount = ticket_data.products?.length ?? 0;
+  }
 
   logger.info('Creating transaction', {
     ticketId: ticket_data.ticket_id,

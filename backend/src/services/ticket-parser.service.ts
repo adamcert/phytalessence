@@ -16,43 +16,74 @@ export function isNewFormat(ticketData: SnapssWebhookPayload['ticket_data']): bo
 }
 
 /**
- * Normalize new format matched_products into NormalizedProduct[]
- * Filters by confidence >= MIN_CONFIDENCE
+ * Normalize new format products (matched + other + potential) into NormalizedProduct[]
+ * Filters matched_products by confidence >= MIN_CONFIDENCE
+ * other_products are always included (our catalog matching will filter)
  */
 export function parseNewFormatProducts(
-  matchedProducts: MatchedProductV2[]
+  allProducts: any[]
 ): NormalizedProduct[] {
   const result: NormalizedProduct[] = [];
 
-  for (const mp of matchedProducts) {
-    if (mp.confidence < MIN_CONFIDENCE) {
-      logger.info('Skipping low confidence product', {
-        name: mp.matched_name || mp.raw_text,
-        confidence: mp.confidence,
-        minRequired: MIN_CONFIDENCE,
+  for (const p of allProducts) {
+    const source: string = p._source || 'matched';
+
+    // For matched_products: apply confidence filter
+    if (source === 'matched') {
+      const confidence = p.confidence || 0;
+      if (confidence < MIN_CONFIDENCE) {
+        logger.info('Skipping low confidence matched product', {
+          name: p.matched_name || p.raw_text,
+          confidence,
+          minRequired: MIN_CONFIDENCE,
+        });
+        continue;
+      }
+
+      const name = p.matched_name || p.raw_text || 'Unknown';
+      const rawText = p.raw_text || p.matched_name || 'Unknown';
+
+      result.push({
+        name,
+        rawText,
+        quantity: p.quantity || 1,
+        unitPrice: p.unit_price || 0,
+        totalPrice: p.total_price || 0,
+        discount: p.discount || 0,
+        confidence: p.confidence || 0,
+        isNewFormat: true,
       });
-      continue;
     }
 
-    const name = mp.matched_name || mp.raw_text || 'Unknown';
-    const rawText = mp.raw_text || mp.matched_name || 'Unknown';
+    // For other_products / potential_products: include for catalog matching
+    // They use 'price' instead of 'unit_price'/'total_price'
+    if (source === 'other' || source === 'potential') {
+      const name = p.raw_text || p.matched_name || 'Unknown';
+      const price = p.price ?? p.unit_price ?? 0;
+      const quantity = p.quantity || 1;
 
-    result.push({
-      name,
-      rawText,
-      quantity: mp.quantity || 1,
-      unitPrice: mp.unit_price || 0,
-      totalPrice: mp.total_price || 0,
-      discount: mp.discount || 0,
-      confidence: mp.confidence || 0,
-      isNewFormat: true,
-    });
+      result.push({
+        name,
+        rawText: name,
+        quantity,
+        unitPrice: price,
+        totalPrice: price * quantity,  // no discount info for other products
+        discount: 0,
+        confidence: 0,  // unknown confidence, our matching decides
+        isNewFormat: true,
+      });
+    }
   }
 
+  const matchedCount = allProducts.filter(p => (p._source || 'matched') === 'matched').length;
+  const otherCount = allProducts.filter(p => p._source === 'other').length;
+  const potentialCount = allProducts.filter(p => p._source === 'potential').length;
+
   logger.info('New format products parsed', {
-    inputCount: matchedProducts.length,
+    matchedInput: matchedCount,
+    otherInput: otherCount,
+    potentialInput: potentialCount,
     outputCount: result.length,
-    filteredByConfidence: matchedProducts.length - result.length,
     totalEligible: result.reduce((sum, p) => sum + p.totalPrice, 0).toFixed(2),
     totalDiscount: result.reduce((sum, p) => sum + p.discount, 0).toFixed(2),
   });

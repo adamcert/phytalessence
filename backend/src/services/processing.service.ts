@@ -67,11 +67,11 @@ export const processTransaction = async (
     const rawProducts = transaction.ticketProducts as any[];
     const expectedTotal = Number(transaction.totalAmount) || 0;
 
-    // Detect new format: products have matched_name/raw_text/unit_price fields
-    const isV2 = rawProducts.length > 0 && ('unit_price' in rawProducts[0] || 'matched_name' in rawProducts[0]);
+    // Detect new format: products have _source tag or matched_name/unit_price fields
+    const isV2 = rawProducts.length > 0 && ('_source' in rawProducts[0] || 'unit_price' in rawProducts[0] || 'matched_name' in rawProducts[0]);
 
     const ticketProducts = isV2
-      ? parseNewFormatProducts(rawProducts as MatchedProductV2[])
+      ? parseNewFormatProducts(rawProducts)
       : parseTicketProducts(rawProducts as TicketProduct[], expectedTotal);
 
     logger.info('Products parsed', {
