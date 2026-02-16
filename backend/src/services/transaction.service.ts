@@ -32,13 +32,27 @@ export const createTransaction = async (
   // nft_object.nft_id is the actual token ID for Certhis API, not nft_object.id
   const nftId = (nft_object as any)?.nft_id?.toString() || nft_object?.id?.toString() || null;
 
+  // Determine format and extract amounts
+  const isV2 = Array.isArray(ticket_data.matched_products);
+  const totalAmount = ticket_data.total_amount ?? ticket_data.total_receipt ?? 0;
+  const rawProducts = isV2
+    ? (ticket_data.matched_products as Prisma.InputJsonValue)
+    : (ticket_data.products as Prisma.InputJsonValue);
+  const productsCount = isV2
+    ? (ticket_data.matched_products?.length ?? 0)
+    : (ticket_data.products?.length ?? 0);
+
   logger.info('Creating transaction', {
     ticketId: ticket_data.ticket_id,
     userEmail: wallet_object.email,
-    totalAmount: ticket_data.total_amount,
-    productsCount: ticket_data.products.length,
+    totalAmount,
+    productsCount,
+    format: isV2 ? 'v2' : 'legacy',
     hasImage: !!ticketImageBase64,
     nftId,
+    storeName: ticket_data.store_name || null,
+    purchaseDate: ticket_data.purchase_date || null,
+    totalDiscount: ticket_data.total_product_discount || ticket_data.total_discount || 0,
   });
 
   // Create or update user record with their NFT ID and Token ID
@@ -69,8 +83,11 @@ export const createTransaction = async (
       userEmail,
       userName,
       userPhone: wallet_object.phone || null,
-      totalAmount: new Prisma.Decimal(ticket_data.total_amount),
-      ticketProducts: ticket_data.products as Prisma.InputJsonValue,
+      totalAmount: new Prisma.Decimal(totalAmount),
+      totalDiscount: new Prisma.Decimal(ticket_data.total_product_discount || ticket_data.total_discount || 0),
+      storeName: ticket_data.store_name || null,
+      purchaseDate: ticket_data.purchase_date || null,
+      ticketProducts: rawProducts ?? Prisma.DbNull,
       ticketImageBase64,
       status: TransactionStatus.PENDING,
     },
@@ -171,8 +188,10 @@ export const forceMatchProduct = async (
     throw new Error('Ce produit est déjà validé');
   }
 
-  // Calculate the additional eligible amount
-  const additionalAmount = product.ticketProduct.price * product.ticketProduct.quantity;
+  // Calculate the additional eligible amount (use totalPrice if available, fallback to price * quantity)
+  const additionalAmount = product.ticketProduct.totalPrice != null
+    ? product.ticketProduct.totalPrice
+    : product.ticketProduct.price * product.ticketProduct.quantity;
 
   // Update the product in the array
   matchedProducts[productIndex] = {

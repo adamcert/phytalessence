@@ -46,6 +46,9 @@ model Transaction {
   matchedProducts    Json?             @map("matched_products")
   ticketImageBase64  String?           @map("ticket_image_base64") @db.LongText
   eligibleAmount     Decimal           @default(0) @map("eligible_amount") @db.Decimal(10, 2)
+  totalDiscount      Decimal           @default(0) @map("total_discount") @db.Decimal(10, 2)
+  storeName          String?           @map("store_name") @db.VarChar(255)
+  purchaseDate       String?           @map("purchase_date") @db.VarChar(20)
   pointsCalculated   Int               @default(0) @map("points_calculated")
   pointsAwarded      Boolean           @default(false) @map("points_awarded")
   notificationSent   Boolean           @default(false) @map("notification_sent")

@@ -7,8 +7,8 @@ import { addPointsWithRetry, sendNotificationWithRetry, fetchCerthisPoints } fro
 import { updateUserCurrentPoints } from './user.service.js';
 import { getNotificationMessage } from './settings.service.js';
 import prisma from '../utils/prisma.js';
-import { TicketProduct } from '../validators/webhook.validator.js';
-import { parseTicketProducts } from './ticket-parser.service.js';
+import { TicketProduct, MatchedProductV2 } from '../validators/webhook.validator.js';
+import { parseTicketProducts, parseNewFormatProducts } from './ticket-parser.service.js';
 
 export interface ProcessingResult {
   success: boolean;
@@ -63,10 +63,22 @@ export const processTransaction = async (
       };
     }
 
-    // Parse and correct ticket products (merge multi-line names, remove 100% discounts)
-    const rawProducts = transaction.ticketProducts as TicketProduct[];
+    // Parse products - detect format and normalize
+    const rawProducts = transaction.ticketProducts as any[];
     const expectedTotal = Number(transaction.totalAmount) || 0;
-    const ticketProducts = parseTicketProducts(rawProducts, expectedTotal);
+
+    // Detect new format: products have matched_name/raw_text/unit_price fields
+    const isV2 = rawProducts.length > 0 && ('unit_price' in rawProducts[0] || 'matched_name' in rawProducts[0]);
+
+    const ticketProducts = isV2
+      ? parseNewFormatProducts(rawProducts as MatchedProductV2[])
+      : parseTicketProducts(rawProducts as TicketProduct[], expectedTotal);
+
+    logger.info('Products parsed', {
+      transactionId,
+      format: isV2 ? 'v2' : 'legacy',
+      productCount: ticketProducts.length,
+    });
 
     // Step 1: Match products
     logger.info('Matching products', { transactionId });

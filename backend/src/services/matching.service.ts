@@ -2,13 +2,15 @@ import { Product } from '@prisma/client';
 import { distance as levenshteinDistance } from 'fastest-levenshtein';
 import prisma from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { TicketProduct } from '../validators/webhook.validator.js';
+import { NormalizedProduct } from '../validators/webhook.validator.js';
 
 export interface MatchedProduct {
-  ticketProduct: TicketProduct;
+  ticketProduct: NormalizedProduct;
   catalogProduct: Product | null;
   isMatched: boolean;
   eligibleAmount: number;
+  unitPrice: number;
+  discount: number;
   matchMethod?: string; // How the match was found
 }
 
@@ -437,12 +439,15 @@ const findBestMatch = (
 /**
  * Matches ticket products against the product catalog
  * Uses multiple matching strategies
+ * For new format: uses totalPrice (after discount) for eligible amount
+ * For old format: uses unitPrice * quantity (no discount info)
  */
 export const matchProducts = async (
-  ticketProducts: TicketProduct[]
+  ticketProducts: NormalizedProduct[]
 ): Promise<MatchingResult> => {
   logger.info('Starting product matching', {
     ticketProductsCount: ticketProducts.length,
+    format: ticketProducts[0]?.isNewFormat ? 'v2' : 'legacy',
   });
 
   // Get all active products from catalog
@@ -462,16 +467,16 @@ export const matchProducts = async (
     );
     const isMatched = catalogProduct !== null;
 
-    // Calculate eligible amount for this product (price * quantity)
-    const productAmount = isMatched
-      ? ticketProduct.price * ticketProduct.quantity
-      : 0;
+    // Calculate eligible amount: totalPrice is already after discount
+    const productAmount = isMatched ? ticketProduct.totalPrice : 0;
 
     matchedProducts.push({
       ticketProduct,
       catalogProduct,
       isMatched,
       eligibleAmount: productAmount,
+      unitPrice: ticketProduct.unitPrice,
+      discount: ticketProduct.discount,
       matchMethod: isMatched ? `${method} (${(score * 100).toFixed(0)}%)` : undefined,
     });
 
@@ -483,6 +488,9 @@ export const matchProducts = async (
         catalogName: catalogProduct.name,
         method,
         score,
+        unitPrice: ticketProduct.unitPrice,
+        discount: ticketProduct.discount,
+        eligibleAmount: productAmount,
       });
     } else {
       totalUnmatched++;
@@ -520,8 +528,13 @@ export const formatMatchingResultForStorage = (
   return result.matchedProducts.map((mp) => ({
     ticketProduct: {
       name: mp.ticketProduct.name,
+      rawText: mp.ticketProduct.rawText,
       quantity: mp.ticketProduct.quantity,
-      price: mp.ticketProduct.price,
+      price: mp.ticketProduct.unitPrice,
+      unitPrice: mp.ticketProduct.unitPrice,
+      totalPrice: mp.ticketProduct.totalPrice,
+      discount: mp.ticketProduct.discount,
+      confidence: mp.ticketProduct.confidence,
     },
     matched: mp.isMatched,
     matchedProductId: mp.catalogProduct?.id || null,
