@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { snapssWebhookSchema } from '../validators/webhook.validator.js';
-import { createTransaction, getTransactionByTicketId } from '../services/transaction.service.js';
+import { createTransaction, getTransactionByTicketId, getTransactionByImageHash, getSuspiciousDuplicate, getDuplicateByProductFingerprint, buildProductFingerprint } from '../services/transaction.service.js';
 import { processTransactionAsync } from '../services/processing.service.js';
 import { logger } from '../utils/logger.js';
 
@@ -61,23 +61,99 @@ async function handleWebhook(req: Request, res: Response, next: NextFunction) {
     const validPayload = validationResult.data;
     const ticketId = validPayload.ticket_data.ticket_id;
     const userEmail = validPayload.wallet_object.email;
+    const imageHash = validPayload.ticket_data.image_hash;
+    const totalAmount = validPayload.ticket_data.total_amount ?? validPayload.ticket_data.total_receipt ?? 0;
 
-    // Check for duplicate ticket
-    const existingTransaction = await getTransactionByTicketId(ticketId);
+    // === ANTI-FRAUD: 3-layer duplicate detection ===
 
-    if (existingTransaction) {
-      logger.warn('Duplicate ticket received', {
+    // Layer 1: Same ticket_id (exact re-send)
+    const existingByTicketId = await getTransactionByTicketId(ticketId);
+    if (existingByTicketId) {
+      logger.warn('Duplicate ticket: same ticket_id', {
         ticketId,
-        existingTransactionId: existingTransaction.id,
+        existingTransactionId: existingByTicketId.id,
       });
-
       res.status(200).json({
         received: true,
-        transactionId: existingTransaction.id,
+        transactionId: existingByTicketId.id,
         message: 'Ticket déjà traité',
         duplicate: true,
+        reason: 'ticket_id',
       });
       return;
+    }
+
+    // Layer 2: Same image hash (same physical ticket scanned again)
+    if (imageHash) {
+      const existingByImage = await getTransactionByImageHash(imageHash);
+      if (existingByImage) {
+        logger.warn('Duplicate ticket: same image_hash', {
+          ticketId,
+          imageHash,
+          existingTransactionId: existingByImage.id,
+          existingTicketId: existingByImage.ticketId,
+        });
+        res.status(200).json({
+          received: true,
+          transactionId: existingByImage.id,
+          message: 'Ce ticket a déjà été scanné',
+          duplicate: true,
+          reason: 'image_hash',
+        });
+        return;
+      }
+    }
+
+    // Layer 3: Same user + same amount within 5 minutes (suspicious re-scan)
+    if (userEmail && totalAmount > 0) {
+      const suspicious = await getSuspiciousDuplicate(userEmail, totalAmount);
+      if (suspicious) {
+        logger.warn('Duplicate ticket: suspicious same user+amount within 5min', {
+          ticketId,
+          userEmail,
+          totalAmount,
+          existingTransactionId: suspicious.id,
+          existingTicketId: suspicious.ticketId,
+          timeDiffMs: Date.now() - suspicious.createdAt.getTime(),
+        });
+        res.status(200).json({
+          received: true,
+          transactionId: suspicious.id,
+          message: 'Ticket similaire déjà traité récemment',
+          duplicate: true,
+          reason: 'same_user_amount_window',
+        });
+        return;
+      }
+    }
+
+    // Layer 4: Same user + same amount + same products (any time, no window)
+    // Catches the case where someone re-scans the same physical ticket days later
+    if (userEmail && totalAmount > 0) {
+      const rawProducts = validPayload.ticket_data.matched_products || validPayload.ticket_data.products || [];
+      const fingerprint = buildProductFingerprint(rawProducts);
+      if (fingerprint) {
+        const duplicate = await getDuplicateByProductFingerprint(userEmail, totalAmount, fingerprint);
+        if (duplicate) {
+          logger.warn('Duplicate ticket: same user+amount+products (fingerprint match)', {
+            ticketId,
+            userEmail,
+            totalAmount,
+            fingerprint,
+            existingTransactionId: duplicate.id,
+            existingTicketId: duplicate.ticketId,
+            daysSinceOriginal: Math.round((Date.now() - duplicate.createdAt.getTime()) / 86400000),
+          });
+          res.status(200).json({
+            received: true,
+            transactionId: duplicate.id,
+            message: 'Ce ticket a déjà été soumis',
+            duplicate: true,
+            reason: 'product_fingerprint',
+          });
+          return;
+        }
+      }
     }
 
     // Create transaction

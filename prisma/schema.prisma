@@ -54,6 +54,7 @@ model Transaction {
   notificationSent   Boolean           @default(false) @map("notification_sent")
   snapssResponse     Json?             @map("snapss_response")
   status             TransactionStatus @default(PENDING)
+  imageHash          String?           @map("image_hash") @db.VarChar(255)
   errorMessage       String?           @map("error_message") @db.Text
   processedAt        DateTime?         @map("processed_at")
   createdAt          DateTime          @default(now()) @map("created_at")
@@ -61,6 +62,8 @@ model Transaction {
   @@index([userEmail])
   @@index([status])
   @@index([createdAt])
+  @@index([imageHash])
+  @@index([userEmail, totalAmount, createdAt])
   @@map("transactions")
 }
 

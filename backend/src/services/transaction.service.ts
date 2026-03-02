@@ -99,6 +99,7 @@ export const createTransaction = async (
       purchaseDate: ticket_data.purchase_date || null,
       ticketProducts: rawProducts ?? Prisma.DbNull,
       ticketImageBase64,
+      imageHash: ticket_data.image_hash || null,
       status: TransactionStatus.PENDING,
     },
   });
@@ -122,6 +123,97 @@ export const getTransactionByTicketId = async (ticketId: string): Promise<Transa
   return prisma.transaction.findUnique({
     where: { ticketId },
   });
+};
+
+/**
+ * Find a duplicate transaction by image hash.
+ * Same image = same physical ticket scanned again.
+ */
+export const getTransactionByImageHash = async (imageHash: string): Promise<Transaction | null> => {
+  if (!imageHash) return null;
+  return prisma.transaction.findFirst({
+    where: { imageHash },
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
+/**
+ * Find a suspicious duplicate: same user + same total amount within a short time window.
+ * Prevents rapid re-scanning of the same ticket.
+ */
+export const getSuspiciousDuplicate = async (
+  userEmail: string,
+  totalAmount: number,
+  windowMinutes: number = 5
+): Promise<Transaction | null> => {
+  const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
+  return prisma.transaction.findFirst({
+    where: {
+      userEmail: userEmail.toLowerCase(),
+      totalAmount: new Prisma.Decimal(totalAmount),
+      createdAt: { gte: windowStart },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
+/**
+ * Layer 4: Same user + same total amount + overlapping products (any time).
+ * Catches re-scans of the same physical ticket even days apart,
+ * by comparing the first matched product name from the ticket.
+ */
+export const getDuplicateByProductFingerprint = async (
+  userEmail: string,
+  totalAmount: number,
+  productFingerprint: string,
+): Promise<Transaction | null> => {
+  if (!productFingerprint) return null;
+
+  // Find all transactions for this user with the same total
+  const candidates = await prisma.transaction.findMany({
+    where: {
+      userEmail: userEmail.toLowerCase(),
+      totalAmount: new Prisma.Decimal(totalAmount),
+      status: { in: ['SUCCESS', 'PARTIAL', 'PENDING'] },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+
+  // Compare product fingerprint against each candidate
+  for (const candidate of candidates) {
+    const existingFingerprint = buildProductFingerprint(candidate.ticketProducts);
+    if (existingFingerprint && existingFingerprint === productFingerprint) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Build a fingerprint from ticket products for duplicate comparison.
+ * Uses sorted product names (heavily normalized) to create a stable identifier
+ * that resists OCR variations between scans of the same ticket.
+ */
+export const buildProductFingerprint = (ticketProducts: unknown): string => {
+  if (!ticketProducts || !Array.isArray(ticketProducts)) return '';
+
+  const names = ticketProducts
+    .map((p: any) => {
+      const name = (p.matched_name || p.raw_text || p.name || '').toLowerCase().trim();
+      // Heavy normalization to resist OCR jitter:
+      // - remove all spaces, dots, slashes, dashes
+      // - collapse repeated chars (e.g. "MMW" -> "MW")
+      return name
+        .replace(/[\s.\-\/,;:()]+/g, '')
+        .replace(/(.)\1+/g, '$1');
+    })
+    .filter(Boolean)
+    .sort()
+    .join('|');
+
+  return names;
 };
 
 export const updateTransaction = async (
