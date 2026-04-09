@@ -167,7 +167,7 @@ export function AdminsPage() {
             ) : (
               <Download className="w-4 h-4 mr-2" />
             )}
-            Exporter wallets CSV
+            Export phydelite
           </button>
           <button
             onClick={openCreateModal}
