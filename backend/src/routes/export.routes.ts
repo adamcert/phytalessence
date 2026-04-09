@@ -345,7 +345,7 @@ router.get(
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="wallets_${new Date().toISOString().split('T')[0]}.csv"`
+        `attachment; filename="export_phydelite_${new Date().toISOString().split('T')[0]}.csv"`
       );
       res.send('\uFEFF' + augmented);
     } catch (error) {

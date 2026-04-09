@@ -7,7 +7,7 @@ export const transactionIdParamSchema = z.object({
 
 export const transactionQuerySchema = z.object({
   status: z.nativeEnum(TransactionStatus).optional(),
-  userEmail: z.string().email().optional(),
+  userEmail: z.string().min(1).max(255).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   page: z.string().regex(/^\d+$/).default('1').transform(Number),
