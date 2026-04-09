@@ -6,6 +6,7 @@ import { validateQuery } from '../middleware/validate.js';
 import { transactionQuerySchema } from '../validators/transaction.validator.js';
 import prisma from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { config } from '../config/index.js';
 
 const router = Router();
 
@@ -203,6 +204,150 @@ router.get(
         `attachment; filename="stats_${new Date().toISOString().split('T')[0]}.json"`
       );
       res.json(stats);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/export/wallets - Export Certhis wallets as CSV with phydelite tag column
+router.get(
+  '/wallets',
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const apiKey = config.snapss.apiKey;
+      const apiSecret = config.snapss.apiPass;
+
+      if (!apiKey || !apiSecret) {
+        res.status(500).json({ error: 'Certhis API credentials not configured' });
+        return;
+      }
+
+      const url = 'https://api.certhis.io/wallets?export_csv=true&tag_id=&attribute_filter=points';
+
+      const upstream = await fetch(url, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json, text/plain, */*',
+          api_key: apiKey,
+          api_secret: apiSecret,
+          origin: 'https://snapss.io',
+          referer: 'https://snapss.io/',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+        },
+      });
+
+      if (!upstream.ok) {
+        const text = await upstream.text();
+        logger.error('Certhis wallets export failed', {
+          status: upstream.status,
+          body: text.slice(0, 500),
+        });
+        res.status(502).json({
+          error: 'Certhis API error',
+          status: upstream.status,
+        });
+        return;
+      }
+
+      const rawCsv = await upstream.text();
+
+      // Parse CSV: detect separator, drop "Wallet Address" column, append "tag" column
+      const lines = rawCsv.split(/\r?\n/);
+      // Strip UTF-8 BOM if present on first line
+      if (lines.length > 0 && lines[0] && lines[0].charCodeAt(0) === 0xfeff) {
+        lines[0] = lines[0].slice(1);
+      }
+
+      // Detect separator from header line (prefer ; then , then \t)
+      const headerLine = lines[0] ?? '';
+      const separator = headerLine.includes(';')
+        ? ';'
+        : headerLine.includes('\t')
+        ? '\t'
+        : ',';
+
+      // Minimal RFC4180-ish CSV row parser (handles quoted fields, escaped quotes)
+      const parseCsvRow = (row: string, sep: string): string[] => {
+        const result: string[] = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < row.length; i++) {
+          const ch = row[i];
+          if (inQuotes) {
+            if (ch === '"') {
+              if (row[i + 1] === '"') {
+                cur += '"';
+                i++;
+              } else {
+                inQuotes = false;
+              }
+            } else {
+              cur += ch;
+            }
+          } else {
+            if (ch === '"') {
+              inQuotes = true;
+            } else if (ch === sep) {
+              result.push(cur);
+              cur = '';
+            } else {
+              cur += ch;
+            }
+          }
+        }
+        result.push(cur);
+        return result;
+      };
+
+      const serializeCsvRow = (cells: string[], sep: string): string =>
+        cells
+          .map((c) => {
+            const needsQuote = c.includes(sep) || c.includes('"') || c.includes('\n');
+            const escaped = c.replace(/"/g, '""');
+            return needsQuote ? `"${escaped}"` : escaped;
+          })
+          .join(sep);
+
+      // Parse header to find Wallet Address column index
+      const headerCells = parseCsvRow(headerLine, separator);
+      const walletAddressIdx = headerCells.findIndex(
+        (h) => h.trim().toLowerCase() === 'wallet address'
+      );
+
+      const outLines: string[] = [];
+      for (let idx = 0; idx < lines.length; idx++) {
+        const line = lines[idx] ?? '';
+        if (line.length === 0) {
+          outLines.push(line);
+          continue;
+        }
+        const cells = parseCsvRow(line, separator);
+        if (walletAddressIdx >= 0 && walletAddressIdx < cells.length) {
+          cells.splice(walletAddressIdx, 1);
+        }
+        if (idx === 0) {
+          cells.push('tag_source');
+        } else {
+          cells.push('phydelite');
+        }
+        outLines.push(serializeCsvRow(cells, separator));
+      }
+
+      const augmented = outLines.join('\n');
+
+      logger.info('Wallets exported', {
+        lines: lines.length - 1,
+        walletAddressRemoved: walletAddressIdx >= 0,
+      });
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="wallets_${new Date().toISOString().split('T')[0]}.csv"`
+      );
+      res.send('\uFEFF' + augmented);
     } catch (error) {
       next(error);
     }

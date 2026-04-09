@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { adminsApi } from '../services/api';
+import { adminsApi, exportApi } from '../services/api';
 import type { Admin } from '../types';
 import { formatDate } from '../lib/utils';
 import {
@@ -11,6 +11,7 @@ import {
   Shield,
   User,
   Users,
+  Download,
 } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
@@ -37,6 +38,29 @@ export function AdminsPage() {
   // Delete confirmation
   const [deleteAdmin, setDeleteAdminState] = useState<Admin | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Wallets export
+  const [isExportingWallets, setIsExportingWallets] = useState(false);
+
+  const handleExportWallets = async () => {
+    setIsExportingWallets(true);
+    try {
+      const blob = await exportApi.wallets();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `wallets_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exporting wallets:', err);
+      alert('Erreur lors de l\'export des wallets');
+    } finally {
+      setIsExportingWallets(false);
+    }
+  };
 
   const fetchAdmins = async () => {
     setIsLoading(true);
@@ -131,13 +155,28 @@ export function AdminsPage() {
             <p className="text-[var(--text-secondary)]">Gestion des comptes administrateurs</p>
           </div>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-300"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Ajouter
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportWallets}
+            disabled={isExportingWallets}
+            className="inline-flex items-center px-4 py-2 border border-[var(--border-glass)] rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            title="Exporter les wallets Certhis (avec tag phydelite)"
+          >
+            {isExportingWallets ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            Exporter wallets CSV
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-300"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Ajouter
+          </button>
+        </div>
       </div>
 
       <div className="glass rounded-2xl overflow-hidden">

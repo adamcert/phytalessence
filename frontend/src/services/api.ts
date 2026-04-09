@@ -168,6 +168,12 @@ export const exportApi = {
     });
     return response.data;
   },
+  wallets: async () => {
+    const response = await api.get('/export/wallets', {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 };
 
 // Users API
