@@ -64,23 +64,37 @@ async function handleWebhook(req: Request, res: Response, next: NextFunction) {
     const imageHash = validPayload.ticket_data.image_hash;
     const totalAmount = validPayload.ticket_data.total_amount ?? validPayload.ticket_data.total_receipt ?? 0;
 
-    // === ANTI-FRAUD: 3-layer duplicate detection ===
+    // === ANTI-FRAUD: 4-layer duplicate detection ===
 
-    // Layer 1: Same ticket_id (exact re-send)
-    const existingByTicketId = await getTransactionByTicketId(ticketId);
-    if (existingByTicketId) {
-      logger.warn('Duplicate ticket: same ticket_id', {
-        ticketId,
-        existingTransactionId: existingByTicketId.id,
-      });
-      res.status(200).json({
-        received: true,
-        transactionId: existingByTicketId.id,
-        message: 'Ticket déjà traité',
-        duplicate: true,
-        reason: 'ticket_id',
-      });
-      return;
+    // Sentinel ticket_ids that mean "OCR could not extract a number".
+    // These must NOT be used for duplicate detection — otherwise the first
+    // ever "not_found" transaction becomes a ghost that swallows every
+    // subsequent failed-OCR ticket from any user.
+    const UNKNOWN_TICKET_IDS = new Set(['not_found', 'unknown', 'none', 'null', '']);
+    const hasRealTicketId =
+      typeof ticketId === 'string' &&
+      ticketId.trim().length > 0 &&
+      !UNKNOWN_TICKET_IDS.has(ticketId.trim().toLowerCase());
+
+    // Layer 1: Same ticket_id (exact re-send) — skipped when ticket_id is unknown
+    if (hasRealTicketId) {
+      const existingByTicketId = await getTransactionByTicketId(ticketId);
+      if (existingByTicketId) {
+        logger.warn('Duplicate ticket: same ticket_id', {
+          ticketId,
+          existingTransactionId: existingByTicketId.id,
+        });
+        res.status(200).json({
+          received: true,
+          transactionId: existingByTicketId.id,
+          message: 'Ticket déjà traité',
+          duplicate: true,
+          reason: 'ticket_id',
+        });
+        return;
+      }
+    } else {
+      logger.info('Skipping Layer 1 duplicate check: unknown ticket_id', { ticketId });
     }
 
     // Layer 2: Same image hash (same physical ticket scanned again)
