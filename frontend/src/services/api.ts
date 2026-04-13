@@ -103,7 +103,7 @@ export const transactionsApi = {
     const response = await api.delete(`/transactions/${id}`);
     return response.data;
   },
-  forceMatch: async (id: number, data: { productIndex: number; catalogProductId: number; note: string }) => {
+  forceMatch: async (id: number, data: { productIndex: number; catalogProductId: number; note: string; quantity?: number; unitPrice?: number }) => {
     const response = await api.post(`/transactions/${id}/force-match`, data);
     return response.data;
   },

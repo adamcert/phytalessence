@@ -286,16 +286,21 @@ export const forceMatchProduct = async (
 
   const product = matchedProducts[productIndex];
 
-  // Allow re-matching any product (matched, forced, or unmatched)
-
-  // Calculate the additional eligible amount (use totalPrice if available, fallback to price * quantity)
-  const additionalAmount = product.ticketProduct.totalPrice != null
-    ? product.ticketProduct.totalPrice
-    : product.ticketProduct.price * product.ticketProduct.quantity;
+  // Apply quantity/price overrides if provided
+  const finalQuantity = input.quantity ?? product.ticketProduct.quantity;
+  const finalUnitPrice = input.unitPrice ?? product.ticketProduct.unitPrice ?? product.ticketProduct.price;
+  const additionalAmount = finalUnitPrice * finalQuantity;
 
   // Update the product in the array
   matchedProducts[productIndex] = {
     ...product,
+    ticketProduct: {
+      ...product.ticketProduct,
+      quantity: finalQuantity,
+      price: finalUnitPrice,
+      unitPrice: finalUnitPrice,
+      totalPrice: additionalAmount,
+    },
     matched: true,
     matchedProductId: catalogProduct.id,
     matchedProductName: catalogProduct.name,

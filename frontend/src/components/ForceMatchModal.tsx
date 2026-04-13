@@ -27,6 +27,7 @@ interface ForceMatchModalProps {
   transactionId: number;
   productIndex: number;
   ticketProduct: TicketProduct;
+  currentMatchId?: number | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -36,22 +37,29 @@ export function ForceMatchModal({
   transactionId,
   productIndex,
   ticketProduct,
+  currentMatchId,
   onClose,
   onSuccess,
 }: ForceMatchModalProps) {
+  const isEditing = !!currentMatchId;
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(currentMatchId || null);
+  const [editQuantity, setEditQuantity] = useState(ticketProduct.quantity);
+  const [editPrice, setEditPrice] = useState(ticketProduct.price);
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fetch catalog products when modal opens
+  // Fetch catalog products and reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchCatalogProducts();
+      setSelectedProductId(currentMatchId || null);
+      setEditQuantity(ticketProduct.quantity);
+      setEditPrice(ticketProduct.price);
     }
   }, [isOpen]);
 
@@ -71,6 +79,8 @@ export function ForceMatchModal({
   const handleClose = () => {
     if (isSubmitting) return;
     setSelectedProductId(null);
+    setEditQuantity(ticketProduct.quantity);
+    setEditPrice(ticketProduct.price);
     setNote('');
     setError(null);
     setSuccess(false);
@@ -89,6 +99,8 @@ export function ForceMatchModal({
         productIndex,
         catalogProductId: selectedProductId,
         note: note.trim(),
+        quantity: editQuantity,
+        unitPrice: editPrice,
       });
       setSuccess(true);
       setTimeout(() => {
@@ -117,7 +129,7 @@ export function ForceMatchModal({
 
   if (!isOpen) return null;
 
-  const eligibleAmount = ticketProduct.price * ticketProduct.quantity;
+  const eligibleAmount = editPrice * editQuantity;
 
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto">
@@ -143,8 +155,8 @@ export function ForceMatchModal({
             <>
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-[var(--text-primary)]">Forcer la validation</h3>
-                  <p className="text-sm text-[var(--text-secondary)]">Associer manuellement ce produit</p>
+                  <h3 className="text-lg font-semibold text-[var(--text-primary)]">{isEditing ? 'Modifier le produit' : 'Forcer la validation'}</h3>
+                  <p className="text-sm text-[var(--text-secondary)]">{isEditing ? 'Modifier le match, la quantité ou le prix' : 'Associer manuellement ce produit'}</p>
                 </div>
                 <button
                   onClick={handleClose}
@@ -155,16 +167,44 @@ export function ForceMatchModal({
                 </button>
               </div>
 
-              {/* Ticket product info */}
-              <div className="mb-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+              {/* Ticket product info + editable fields */}
+              <div className={`mb-4 p-4 rounded-xl ${isEditing ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <AlertTriangle className={`w-5 h-5 ${isEditing ? 'text-orange-500' : 'text-red-500'} flex-shrink-0 mt-0.5`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-red-400 mb-1">Produit non reconnu</p>
-                    <p className="text-sm text-[var(--text-primary)] truncate">{ticketProduct.name}</p>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      {ticketProduct.quantity}x {ticketProduct.price.toFixed(2)}€ = <span className="font-medium text-orange-400">{eligibleAmount.toFixed(2)}€</span>
+                    <p className={`text-sm font-medium ${isEditing ? 'text-orange-400' : 'text-red-400'} mb-1`}>
+                      {isEditing ? 'Produit à modifier' : 'Produit non reconnu'}
                     </p>
+                    <p className="text-sm text-[var(--text-primary)] truncate">{ticketProduct.name}</p>
+                    <div className="flex gap-3 mt-2">
+                      <div className="flex-1">
+                        <label className="block text-[10px] text-[var(--text-tertiary)] mb-0.5">Quantité</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editQuantity}
+                          onChange={(e) => setEditQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="w-full px-2 py-1 text-sm rounded-lg border border-[var(--border-glass)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] text-[var(--text-tertiary)] mb-0.5">Prix unitaire</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editPrice}
+                          onChange={(e) => setEditPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full px-2 py-1 text-sm rounded-lg border border-[var(--border-glass)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] text-[var(--text-tertiary)] mb-0.5">Total</label>
+                        <p className="px-2 py-1 text-sm font-medium text-orange-400">
+                          {(editQuantity * editPrice).toFixed(2)}€
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -263,7 +303,7 @@ export function ForceMatchModal({
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4" />
-                      Forcer la validation (+{eligibleAmount.toFixed(2)}€)
+                      {isEditing ? 'Modifier' : 'Forcer la validation'} ({eligibleAmount.toFixed(2)}€)
                     </>
                   )}
                 </button>

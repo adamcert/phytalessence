@@ -132,6 +132,7 @@ export function TransactionsPage() {
     transactionId: number;
     productIndex: number;
     ticketProduct: { name: string; quantity: number; price: number };
+    currentMatchId?: number | null;
   } | null>(null);
 
   // Unmatch state
@@ -728,6 +729,7 @@ export function TransactionsPage() {
                                             transactionId: currentTransaction.id,
                                             productIndex: idx,
                                             ticketProduct: mp.ticketProduct,
+                                            currentMatchId: mp.matched ? (mp as any).matchedProductId : null,
                                           });
                                         }
                                       }}
@@ -1024,6 +1026,7 @@ export function TransactionsPage() {
           transactionId={forceMatchData.transactionId}
           productIndex={forceMatchData.productIndex}
           ticketProduct={forceMatchData.ticketProduct}
+          currentMatchId={forceMatchData.currentMatchId}
           onClose={() => setForceMatchData(null)}
           onSuccess={() => {
             fetchTransactions(pagination.page);

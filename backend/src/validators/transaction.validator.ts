@@ -24,6 +24,8 @@ export const forceMatchSchema = z.object({
   productIndex: z.number().int().min(0, 'Index produit invalide'),
   catalogProductId: z.number().int().positive('ID produit catalogue requis'),
   note: z.string().min(3, 'Note requise (min 3 caractères)').max(500, 'Note trop longue'),
+  quantity: z.number().int().min(1).optional(),
+  unitPrice: z.number().min(0).optional(),
 });
 
 export const unmatchSchema = z.object({
