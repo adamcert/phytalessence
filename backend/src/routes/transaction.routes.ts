@@ -8,8 +8,9 @@ import {
   transactionQuerySchema,
   reprocessTransactionSchema,
   forceMatchSchema,
+  unmatchSchema,
 } from '../validators/transaction.validator.js';
-import { getTransactionById, updateTransactionStatus, deleteTransaction, forceMatchProduct } from '../services/transaction.service.js';
+import { getTransactionById, updateTransactionStatus, deleteTransaction, forceMatchProduct, unmatchProduct } from '../services/transaction.service.js';
 import { processTransaction } from '../services/processing.service.js';
 import { logger } from '../utils/logger.js';
 import { AppError } from '../middleware/error.js';
@@ -245,6 +246,42 @@ router.post(
 
       res.json({
         message: 'Produit forcé avec succès',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/transactions/:id/unmatch - Unmatch a product (ADMIN only)
+router.post(
+  '/:id/unmatch',
+  roleMiddleware('ADMIN'),
+  validateParams(transactionIdParamSchema),
+  validateBody(unmatchSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params as unknown as { id: number };
+      const { productIndex, note } = req.body;
+      const adminEmail = (req as any).user?.email || 'unknown';
+
+      const transaction = await getTransactionById(id);
+
+      if (!transaction) {
+        throw new AppError('Transaction non trouvée', 404, 'NOT_FOUND');
+      }
+
+      logger.info('Unmatching product', {
+        transactionId: id,
+        productIndex,
+        adminEmail,
+      });
+
+      const result = await unmatchProduct(id, { productIndex, note }, adminEmail);
+
+      res.json({
+        message: 'Produit dé-matché avec succès',
         data: result,
       });
     } catch (error) {

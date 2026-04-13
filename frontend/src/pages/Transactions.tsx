@@ -134,6 +134,18 @@ export function TransactionsPage() {
     ticketProduct: { name: string; quantity: number; price: number };
   } | null>(null);
 
+  // Unmatch state
+  const [unmatchData, setUnmatchData] = useState<{
+    transactionId: number;
+    productIndex: number;
+    productName: string;
+  } | null>(null);
+  const [unmatchNote, setUnmatchNote] = useState('');
+  const [isUnmatching, setIsUnmatching] = useState(false);
+
+  // Image viewer overlay
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+
   const fetchTransactions = async (page = 1) => {
     setIsLoading(true);
     try {
@@ -230,6 +242,27 @@ export function TransactionsPage() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Error exporting transactions:', err);
+    }
+  };
+
+  const handleUnmatch = async () => {
+    if (!unmatchData || unmatchNote.length < 3) return;
+    setIsUnmatching(true);
+    try {
+      await transactionsApi.unmatch(unmatchData.transactionId, {
+        productIndex: unmatchData.productIndex,
+        note: unmatchNote,
+      });
+      setUnmatchData(null);
+      setUnmatchNote('');
+      fetchTransactions(pagination.page);
+      if (selectedUserGroup) {
+        openUserDetail(selectedUserGroup);
+      }
+    } catch (err) {
+      console.error('Error unmatching product:', err);
+    } finally {
+      setIsUnmatching(false);
     }
   };
 
@@ -650,11 +683,8 @@ export function TransactionsPage() {
                               <img
                                 src={`data:image/jpeg;base64,${currentTransaction.ticketImageBase64}`}
                                 alt="Ticket de caisse"
-                                className="w-full max-h-[500px] object-contain rounded-lg border border-[var(--border-glass)] cursor-zoom-in"
-                                onClick={(e) => {
-                                  const img = e.target as HTMLImageElement;
-                                  if (img.requestFullscreen) img.requestFullscreen();
-                                }}
+                                className="w-full max-h-[500px] object-contain rounded-lg border border-[var(--border-glass)] cursor-zoom-in hover:opacity-90 transition-opacity"
+                                onClick={() => setImageViewerOpen(true)}
                               />
                               <p className="text-xs text-[var(--text-tertiary)] text-center mt-2">
                                 Cliquez pour agrandir
@@ -681,8 +711,13 @@ export function TransactionsPage() {
                             {currentTransaction.matchedProducts && currentTransaction.matchedProducts.length > 0 ? (
                               <>
                                 {(currentTransaction.matchedProducts as MatchedProduct[]).map((mp, idx) => {
-                                  const isForced = (mp as any).forced;
+                                  const isForced = mp.forced;
                                   const canForceMatch = isAdmin && !mp.matched;
+                                  const canUnmatch = isAdmin && mp.matched;
+                                  const hasDiscount = (mp.ticketProduct.discount ?? 0) > 0;
+                                  const displayPrice = mp.ticketProduct.totalPrice ?? (mp.ticketProduct.price * mp.ticketProduct.quantity);
+                                  const originalPrice = (mp.ticketProduct.unitPrice ?? mp.ticketProduct.price) * mp.ticketProduct.quantity;
+                                  const productPoints = mp.matched ? Math.floor(mp.eligibleAmount) : 0;
 
                                   return (
                                     <div
@@ -724,24 +759,58 @@ export function TransactionsPage() {
                                               )}
                                             </p>
                                           )}
-                                          {isForced && (mp as any).forcedNote && (
+                                          {isForced && mp.forcedNote && (
                                             <p className="text-[10px] text-orange-400/70 truncate">
-                                              Note: {(mp as any).forcedNote}
+                                              Note: {mp.forcedNote}
                                             </p>
                                           )}
                                           <p className="text-xs text-[var(--text-tertiary)]">
-                                            {mp.ticketProduct.quantity} x {formatCurrency(mp.ticketProduct.price)}
+                                            {mp.ticketProduct.quantity} x {formatCurrency(mp.ticketProduct.unitPrice ?? mp.ticketProduct.price)}
+                                            {hasDiscount && (
+                                              <span className="ml-1 text-orange-500 font-medium">
+                                                (-{formatCurrency(mp.ticketProduct.discount!)})
+                                              </span>
+                                            )}
                                           </p>
                                         </div>
                                       </div>
-                                      <div className="text-right flex-shrink-0 ml-2">
-                                        <p className={`text-sm font-medium ${
-                                          isForced ? 'text-orange-500' : mp.matched ? 'text-success-600' : 'text-[var(--text-tertiary)] line-through'
-                                        }`}>
-                                          {formatCurrency(mp.ticketProduct.price * mp.ticketProduct.quantity)}
-                                        </p>
-                                        {canForceMatch && (
-                                          <p className="text-[10px] text-orange-500">Cliquez pour forcer</p>
+                                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                        <div className="text-right">
+                                          {hasDiscount && (
+                                            <p className="text-[10px] text-[var(--text-tertiary)] line-through">
+                                              {formatCurrency(originalPrice)}
+                                            </p>
+                                          )}
+                                          <p className={`text-sm font-medium ${
+                                            isForced ? 'text-orange-500' : mp.matched ? 'text-success-600' : 'text-[var(--text-tertiary)] line-through'
+                                          }`}>
+                                            {formatCurrency(displayPrice)}
+                                          </p>
+                                          {mp.matched ? (
+                                            <p className="text-xs font-bold text-primary-500">
+                                              {productPoints} pt{productPoints > 1 ? 's' : ''}
+                                            </p>
+                                          ) : canForceMatch ? (
+                                            <p className="text-[10px] text-orange-500">Cliquez pour forcer</p>
+                                          ) : (
+                                            <p className="text-[10px] text-[var(--text-tertiary)]">0 pt</p>
+                                          )}
+                                        </div>
+                                        {canUnmatch && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setUnmatchData({
+                                                transactionId: currentTransaction.id,
+                                                productIndex: idx,
+                                                productName: mp.matchedProductName || mp.ticketProduct.name,
+                                              });
+                                            }}
+                                            className="p-1.5 rounded-lg bg-error-500/10 hover:bg-error-500/25 border border-error-500/20 hover:border-error-500/40 transition-all group"
+                                            title="Retirer ce match"
+                                          >
+                                            <X className="w-3.5 h-3.5 text-error-400 group-hover:text-error-500 transition-colors" />
+                                          </button>
                                         )}
                                       </div>
                                     </div>
@@ -898,6 +967,27 @@ export function TransactionsPage() {
         </div>
       )}
 
+      {/* Image Viewer Overlay */}
+      {imageViewerOpen && currentTransaction?.ticketImageBase64 && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md"
+          onClick={() => setImageViewerOpen(false)}
+        >
+          <button
+            onClick={() => setImageViewerOpen(false)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={`data:image/jpeg;base64,${currentTransaction.ticketImageBase64}`}
+            alt="Ticket de caisse"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         isOpen={!!deleteTransaction}
@@ -943,6 +1033,48 @@ export function TransactionsPage() {
             }
           }}
         />
+      )}
+
+      {/* Unmatch Confirmation Dialog */}
+      {unmatchData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-[var(--bg-primary)] rounded-2xl p-6 w-full max-w-md border border-[var(--border-glass)] shadow-xl">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
+              Retirer le match
+            </h3>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              Voulez-vous retirer le match pour <strong>{unmatchData.productName}</strong> ?
+              Les points seront recalculés.
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs text-[var(--text-tertiary)] mb-1">Raison</label>
+              <input
+                type="text"
+                value={unmatchNote}
+                onChange={(e) => setUnmatchNote(e.target.value)}
+                placeholder="Ex: Produit non Phytalessence"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--border-glass)] bg-[var(--bg-secondary)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-error-500/50"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setUnmatchData(null); setUnmatchNote(''); }}
+                className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleUnmatch}
+                disabled={isUnmatching || unmatchNote.length < 3}
+                className="px-4 py-2 rounded-lg text-sm bg-error-500 text-white hover:bg-error-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isUnmatching ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                Retirer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

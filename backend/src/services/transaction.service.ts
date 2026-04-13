@@ -2,7 +2,7 @@ import { Transaction, TransactionStatus, Prisma } from '@prisma/client';
 import prisma from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { SnapssWebhookPayload } from '../validators/webhook.validator.js';
-import { ForceMatchInput } from '../validators/transaction.validator.js';
+import { ForceMatchInput, UnmatchInput } from '../validators/transaction.validator.js';
 import { calculatePoints } from './points.service.js';
 import { fetchCerthisPoints, addPointsWithRetry } from './snapss.service.js';
 
@@ -391,6 +391,93 @@ export const forceMatchProduct = async (
       });
     }
   }
+
+  return updatedTransaction;
+};
+
+/**
+ * Unmatch a product in a transaction (remove a bad match)
+ * Reverts the product to unmatched state and recalculates points
+ */
+export const unmatchProduct = async (
+  transactionId: number,
+  input: UnmatchInput,
+  adminEmail: string
+): Promise<Transaction> => {
+  const { productIndex, note } = input;
+
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+  });
+
+  if (!transaction) {
+    throw new Error('Transaction non trouvée');
+  }
+
+  const matchedProducts = (transaction.matchedProducts as any[]) || [];
+
+  if (productIndex < 0 || productIndex >= matchedProducts.length) {
+    throw new Error('Index produit invalide');
+  }
+
+  const product = matchedProducts[productIndex];
+
+  if (!product.matched) {
+    throw new Error('Ce produit n\'est pas matché');
+  }
+
+  const removedAmount = product.eligibleAmount || 0;
+
+  // Revert the product to unmatched state
+  matchedProducts[productIndex] = {
+    ticketProduct: product.ticketProduct,
+    matched: false,
+    matchedProductId: null,
+    matchedProductName: null,
+    eligibleAmount: 0,
+    matchMethod: null,
+    unmatched: true,
+    unmatchedNote: note,
+    unmatchedBy: adminEmail,
+    unmatchedAt: new Date().toISOString(),
+    previousMatch: product.matchedProductName || null,
+  };
+
+  // Recalculate total eligible amount
+  const newEligibleAmount = matchedProducts.reduce(
+    (sum: number, p: any) => sum + (p.matched ? p.eligibleAmount : 0),
+    0
+  );
+
+  // Calculate new points
+  const pointsResult = await calculatePoints(newEligibleAmount);
+  const newPoints = pointsResult.roundedPoints;
+
+  const previousPoints = transaction.pointsCalculated || 0;
+  const pointsDelta = previousPoints - newPoints;
+
+  logger.info('Unmatching product', {
+    transactionId,
+    productIndex,
+    removedProduct: product.matchedProductName,
+    removedAmount,
+    newEligibleAmount,
+    previousPoints,
+    newPoints,
+    pointsDelta,
+    adminEmail,
+    note,
+  });
+
+  // Update transaction in database
+  const updatedTransaction = await prisma.transaction.update({
+    where: { id: transactionId },
+    data: {
+      matchedProducts: matchedProducts as Prisma.InputJsonValue,
+      eligibleAmount: new Prisma.Decimal(newEligibleAmount),
+      pointsCalculated: newPoints,
+    },
+  });
 
   return updatedTransaction;
 };

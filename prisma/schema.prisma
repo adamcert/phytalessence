@@ -50,6 +50,7 @@ model Transaction {
   storeName          String?           @map("store_name") @db.VarChar(255)
   purchaseDate       String?           @map("purchase_date") @db.VarChar(20)
   pointsCalculated   Int               @default(0) @map("points_calculated")
+  pointsSentToCerthis Int              @default(0) @map("points_sent_to_certhis")
   pointsAwarded      Boolean           @default(false) @map("points_awarded")
   notificationSent   Boolean           @default(false) @map("notification_sent")
   snapssResponse     Json?             @map("snapss_response")

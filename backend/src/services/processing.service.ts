@@ -9,6 +9,8 @@ import { getNotificationMessage } from './settings.service.js';
 import prisma from '../utils/prisma.js';
 import { TicketProduct, MatchedProductV2 } from '../validators/webhook.validator.js';
 import { parseTicketProducts, parseNewFormatProducts } from './ticket-parser.service.js';
+import { analyzeTicketWithClaude } from './claude-vision.service.js';
+import { config } from '../config/index.js';
 
 export interface ProcessingResult {
   success: boolean;
@@ -80,22 +82,93 @@ export const processTransaction = async (
       productCount: ticketProducts.length,
     });
 
-    // Step 1: Match products
-    logger.info('Matching products', { transactionId });
-    const matchingResult = await matchProducts(ticketProducts);
-    const matchedProductsData = formatMatchingResultForStorage(matchingResult);
+    // Step 1: Match products — try Claude Vision first, fallback to Levenshtein
+    let matchedProductsData: object[];
+    let eligibleAmount: number;
+    let totalMatched: number;
+    let totalUnmatched: number;
+    let usedClaude = false;
+
+    if (transaction.ticketImageBase64 && config.claude.apiKey) {
+      // Use Claude Vision for matching
+      logger.info('Using Claude Vision for matching', { transactionId });
+      const claudeResult = await analyzeTicketWithClaude(
+        transaction.ticketImageBase64,
+        transactionId
+      );
+
+      if (claudeResult) {
+        usedClaude = true;
+
+        // Convert Claude results to matchedProducts format
+        matchedProductsData = claudeResult.products.map((p) => ({
+          ticketProduct: {
+            name: p.name,
+            rawText: p.name,
+            quantity: p.quantity,
+            price: p.unit_price,
+            unitPrice: p.unit_price,
+            totalPrice: p.total_price,
+            discount: 0,
+            confidence: 10,
+          },
+          matched: p.is_phytalessence && !!p.matched_catalog_id,
+          matchedProductId: p.matched_catalog_id || null,
+          matchedProductName: p.matched_catalog_product || null,
+          eligibleAmount: p.is_phytalessence && p.matched_catalog_id ? p.total_price : 0,
+          matchMethod: p.is_phytalessence && p.matched_catalog_id ? 'claude_vision' : null,
+        }));
+
+        totalMatched = matchedProductsData.filter((p: any) => p.matched).length;
+        totalUnmatched = matchedProductsData.filter((p: any) => !p.matched).length;
+        eligibleAmount = matchedProductsData.reduce(
+          (sum: number, p: any) => sum + (p.matched ? p.eligibleAmount : 0),
+          0
+        );
+
+        logger.info('Claude matching completed — ticketProducts updated', {
+          transactionId,
+          matched: totalMatched,
+          unmatched: totalUnmatched,
+          eligibleAmount,
+        });
+
+        // Store Claude's OCR products separately
+        await updateTransaction(transactionId, {
+          ocrProducts: claudeResult as unknown as Prisma.InputJsonValue,
+          ocrUsed: true,
+          storeName: claudeResult.store_name || transaction.storeName,
+        });
+      } else {
+        // Claude failed, fallback to Levenshtein
+        logger.warn('Claude Vision failed, falling back to Levenshtein', { transactionId });
+        const matchingResult = await matchProducts(ticketProducts);
+        matchedProductsData = formatMatchingResultForStorage(matchingResult);
+        totalMatched = matchingResult.totalMatched;
+        totalUnmatched = matchingResult.totalUnmatched;
+        eligibleAmount = matchingResult.eligibleAmount;
+      }
+    } else {
+      // No image or no API key — use Levenshtein matching
+      logger.info('Matching products', { transactionId });
+      const matchingResult = await matchProducts(ticketProducts);
+      matchedProductsData = formatMatchingResultForStorage(matchingResult);
+      totalMatched = matchingResult.totalMatched;
+      totalUnmatched = matchingResult.totalUnmatched;
+      eligibleAmount = matchingResult.eligibleAmount;
+    }
 
     // Step 2: Calculate points
     logger.info('Calculating points', {
       transactionId,
-      eligibleAmount: matchingResult.eligibleAmount,
+      eligibleAmount,
     });
-    const pointsResult = await calculatePoints(matchingResult.eligibleAmount);
+    const pointsResult = await calculatePoints(eligibleAmount);
 
     // Step 3: Update transaction with matching and points data
     await updateTransaction(transactionId, {
       matchedProducts: matchedProductsData as Prisma.InputJsonValue,
-      eligibleAmount: new Prisma.Decimal(matchingResult.eligibleAmount),
+      eligibleAmount: new Prisma.Decimal(eligibleAmount),
       pointsCalculated: pointsResult.roundedPoints,
     });
 
@@ -170,7 +243,7 @@ export const processTransaction = async (
 
     // Step 5: Update final transaction status
     const finalStatus =
-      matchingResult.totalMatched > 0
+      totalMatched > 0
         ? TransactionStatus.SUCCESS
         : TransactionStatus.PARTIAL;
 
@@ -187,18 +260,19 @@ export const processTransaction = async (
     logger.info('Transaction processing completed', {
       transactionId,
       status: finalStatus,
-      matchedProducts: matchingResult.totalMatched,
+      matchedProducts: totalMatched,
       points: pointsResult.roundedPoints,
       notificationSent,
+      usedClaude,
       duration: `${duration}ms`,
     });
 
     return {
       success: true,
       transactionId,
-      matchedProducts: matchingResult.totalMatched,
-      unmatchedProducts: matchingResult.totalUnmatched,
-      eligibleAmount: matchingResult.eligibleAmount,
+      matchedProducts: totalMatched,
+      unmatchedProducts: totalUnmatched,
+      eligibleAmount,
       pointsCalculated: pointsResult.roundedPoints,
       notificationSent,
       duration,

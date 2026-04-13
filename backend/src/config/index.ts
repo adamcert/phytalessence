@@ -34,6 +34,11 @@ export const config = {
     collectionIndex: process.env.SNAPSS_COLLECTION_INDEX || '',
   },
 
+  claude: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
+  },
+
   certhis: {
     apiUrl: process.env.CERTHIS_API_URL || 'https://dynamic-api.certhis.io',
     apiKey: process.env.CERTHIS_API_KEY || '',

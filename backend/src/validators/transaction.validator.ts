@@ -26,5 +26,11 @@ export const forceMatchSchema = z.object({
   note: z.string().min(3, 'Note requise (min 3 caractères)').max(500, 'Note trop longue'),
 });
 
+export const unmatchSchema = z.object({
+  productIndex: z.number().int().min(0, 'Index produit invalide'),
+  note: z.string().min(3, 'Note requise (min 3 caractères)').max(500, 'Note trop longue'),
+});
+
 export type TransactionQuery = z.infer<typeof transactionQuerySchema>;
 export type ForceMatchInput = z.infer<typeof forceMatchSchema>;
+export type UnmatchInput = z.infer<typeof unmatchSchema>;

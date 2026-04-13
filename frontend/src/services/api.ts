@@ -107,6 +107,10 @@ export const transactionsApi = {
     const response = await api.post(`/transactions/${id}/force-match`, data);
     return response.data;
   },
+  unmatch: async (id: number, data: { productIndex: number; note: string }) => {
+    const response = await api.post(`/transactions/${id}/unmatch`, data);
+    return response.data;
+  },
 };
 
 // Settings API
