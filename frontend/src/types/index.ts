@@ -23,6 +23,11 @@ export interface TicketProduct {
   name: string;
   price: number;
   quantity: number;
+  rawText?: string;
+  unitPrice?: number;
+  totalPrice?: number;
+  discount?: number;
+  confidence?: number;
 }
 
 export interface MatchedProduct {
@@ -32,6 +37,10 @@ export interface MatchedProduct {
   matched: boolean;
   eligibleAmount: number;
   matchMethod?: string | null;
+  forced?: boolean;
+  forcedNote?: string;
+  forcedBy?: string;
+  forcedAt?: string;
 }
 
 export interface Transaction {

@@ -286,9 +286,7 @@ export const forceMatchProduct = async (
 
   const product = matchedProducts[productIndex];
 
-  if (product.matched && !product.forced) {
-    throw new Error('Ce produit est déjà validé');
-  }
+  // Allow re-matching any product (matched, forced, or unmatched)
 
   // Calculate the additional eligible amount (use totalPrice if available, fallback to price * quantity)
   const additionalAmount = product.ticketProduct.totalPrice != null

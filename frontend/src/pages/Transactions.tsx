@@ -712,7 +712,7 @@ export function TransactionsPage() {
                               <>
                                 {(currentTransaction.matchedProducts as MatchedProduct[]).map((mp, idx) => {
                                   const isForced = mp.forced;
-                                  const canForceMatch = isAdmin && !mp.matched;
+                                  const canForceMatch = isAdmin;
                                   const canUnmatch = isAdmin && mp.matched;
                                   const hasDiscount = (mp.ticketProduct.discount ?? 0) > 0;
                                   const displayPrice = mp.ticketProduct.totalPrice ?? (mp.ticketProduct.price * mp.ticketProduct.quantity);
@@ -737,7 +737,7 @@ export function TransactionsPage() {
                                           : mp.matched
                                           ? 'bg-success-500/5 border-success-500/20'
                                           : 'bg-error-500/5 border-error-500/20'
-                                      } ${canForceMatch ? 'cursor-pointer hover:bg-orange-500/10 hover:border-orange-500/30' : ''}`}
+                                      } ${isAdmin ? 'cursor-pointer hover:bg-orange-500/10 hover:border-orange-500/30' : ''}`}
                                     >
                                       <div className="flex items-center gap-3 flex-1 min-w-0">
                                         {isForced ? (
