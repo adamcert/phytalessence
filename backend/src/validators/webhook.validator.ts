@@ -34,11 +34,11 @@ const walletObjectSchema = z.object({
   first_name: z.string().nullable().optional(),
   last_name: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
-});
+}).passthrough();
 
-// Ticket data - supports both old and new format
+// Ticket data - supports old format, v2 format, and v3 image-only format
 const ticketDataSchema = z.object({
-  ticket_id: z.string().min(1, 'Ticket ID requis'),
+  ticket_id: z.string().optional(), // Optional in v3 (Claude extracts it)
   // Old format fields (optional for new format)
   total_amount: z.number().nonnegative().optional(),
   products: z.array(ticketProductSchema).optional(),
@@ -62,10 +62,7 @@ const ticketDataSchema = z.object({
   total_discount: z.number().optional(),
   image_hash: z.string().optional(),
   image_processed_at: z.string().optional(),
-}).refine(
-  (data) => (data.products && data.products.length > 0) || (data.matched_products && data.matched_products.length >= 0),
-  { message: 'Au moins products ou matched_products requis' }
-);
+}).passthrough();
 
 // NFT object (optional)
 const nftObjectSchema = z.object({

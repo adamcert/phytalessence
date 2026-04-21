@@ -33,13 +33,18 @@ export const createTransaction = async (
   const nftId = (nft_object as any)?.nft_id?.toString() || nft_object?.id?.toString() || null;
 
   // Determine format and extract amounts
-  const isV2 = Array.isArray(ticket_data.matched_products);
+  const isV2 = Array.isArray(ticket_data.matched_products) && ticket_data.matched_products.length > 0;
+  const isImageOnly = !isV2 && !ticket_data.products?.length;
   const totalAmount = ticket_data.total_amount ?? ticket_data.total_receipt ?? 0;
 
   // For v2: combine matched_products + other_products, tagged with _source
   let rawProducts: Prisma.InputJsonValue;
   let productsCount: number;
-  if (isV2) {
+  if (isImageOnly) {
+    // v3 image-only format — no products from Snapss, Claude will extract
+    rawProducts = [] as Prisma.InputJsonValue;
+    productsCount = 0;
+  } else if (isV2) {
     const allProducts = [
       ...(ticket_data.matched_products || []).map(p => ({ ...p, _source: 'matched' })),
       ...(ticket_data.other_products || []).map(p => ({ ...p, _source: 'other' })),
@@ -57,7 +62,7 @@ export const createTransaction = async (
     userEmail: wallet_object.email,
     totalAmount,
     productsCount,
-    format: isV2 ? 'v2' : 'legacy',
+    format: isImageOnly ? 'image-only' : isV2 ? 'v2' : 'legacy',
     hasImage: !!ticketImageBase64,
     nftId,
     storeName: ticket_data.store_name || null,
@@ -89,7 +94,7 @@ export const createTransaction = async (
 
   const transaction = await prisma.transaction.create({
     data: {
-      ticketId: ticket_data.ticket_id,
+      ticketId: ticket_data.ticket_id || `scan_${Date.now()}`,
       userEmail,
       userName,
       userPhone: wallet_object.phone || null,

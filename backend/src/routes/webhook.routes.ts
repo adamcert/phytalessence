@@ -59,10 +59,29 @@ async function handleWebhook(req: Request, res: Response, next: NextFunction) {
     }
 
     const validPayload = validationResult.data;
-    const ticketId = validPayload.ticket_data.ticket_id;
     const userEmail = validPayload.wallet_object.email;
     const imageHash = validPayload.ticket_data.image_hash;
     const totalAmount = validPayload.ticket_data.total_amount ?? validPayload.ticket_data.total_receipt ?? 0;
+
+    // Generate ticket_id if not provided (v3 image-only format)
+    const isImageOnly = !validPayload.ticket_data.ticket_id &&
+      !validPayload.ticket_data.products?.length &&
+      !validPayload.ticket_data.matched_products?.length;
+
+    if (isImageOnly) {
+      logger.info('Image-only webhook (v3 format) — Claude will extract all data', {
+        userEmail,
+        imageHash,
+        hasImage: !!validPayload.ticket_image?.base64,
+      });
+    }
+
+    // Use provided ticket_id, or image_hash, or generate one
+    const ticketId = validPayload.ticket_data.ticket_id ||
+      (imageHash ? `img_${imageHash}` : `scan_${Date.now()}`);
+
+    // Inject the generated ticket_id back into payload for createTransaction
+    validPayload.ticket_data.ticket_id = ticketId;
 
     // === ANTI-FRAUD: 4-layer duplicate detection ===
 

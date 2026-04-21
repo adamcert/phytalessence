@@ -133,12 +133,16 @@ export const processTransaction = async (
           eligibleAmount,
         });
 
-        // Store Claude's OCR products separately
-        await updateTransaction(transactionId, {
+        // Store Claude's OCR products separately + update totalAmount if it was 0
+        const updateData: any = {
           ocrProducts: claudeResult as unknown as Prisma.InputJsonValue,
           ocrUsed: true,
           storeName: claudeResult.store_name || transaction.storeName,
-        });
+        };
+        if (Number(transaction.totalAmount) === 0 && claudeResult.total_receipt > 0) {
+          updateData.totalAmount = new Prisma.Decimal(claudeResult.total_receipt);
+        }
+        await updateTransaction(transactionId, updateData);
       } else {
         // Claude failed, fallback to Levenshtein
         logger.warn('Claude Vision failed, falling back to Levenshtein', { transactionId });
