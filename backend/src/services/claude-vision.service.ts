@@ -58,23 +58,25 @@ export async function analyzeTicketWithClaude(
 Extrais les informations suivantes au format JSON strict :
 
 1. **store_name** : nom du magasin/pharmacie
-2. **ticket_id** : numéro de ticket/facture
-3. **total_receipt** : montant total TTC du ticket
+2. **ticket_id** : numéro de ticket/facture (cherche un numéro après "Caisse", "Ticket", "Facture", ou un code type "109-0565")
+3. **total_receipt** : montant total TTC du ticket (cherche "Total", "TOTAL TTC", "Total X articles")
 4. **products** : liste de TOUS les produits du ticket avec pour chacun :
    - name : nom exact tel qu'il apparaît sur le ticket
-   - quantity : quantité
+   - quantity : quantité (par défaut 1 si non spécifiée explicitement)
    - unit_price : prix unitaire TTC
    - total_price : prix total (quantity × unit_price)
-   - is_phytalessence : true si c'est un produit de la marque Phytalessence (cherche les mots clés : phytalessence, phytaless, phyta, ou un nom qui correspond au catalogue ci-dessous)
+   - is_phytalessence : true si c'est un produit de la marque Phytalessence (cherche les mots clés : phytalessence, phytaless, phyta, phy pre, ultimate, ou un nom qui correspond au catalogue ci-dessous)
    - matched_catalog_product : si is_phytalessence=true, le nom du produit catalogue le plus proche
    - matched_catalog_id : si is_phytalessence=true, l'ID du produit catalogue
 
 Catalogue Phytalessence :
 ${catalogList}
 
-IMPORTANT :
+RÈGLES CRITIQUES :
+- QUANTITÉ : Sur les tickets de pharmacie/parapharmacie, les petits chiffres (1, 2, 3...) après le prix TTC sont souvent des CODES TVA, PAS des quantités. La quantité est indiquée AVANT le nom du produit ou sur une ligne séparée (ex: "2 x 24.99"). Si tu ne vois pas de quantité explicite, mets 1.
+- VÉRIFICATION : La somme de tous les total_price doit correspondre au total_receipt du ticket. Si ta somme est très différente du total affiché, tu as probablement lu les codes TVA comme des quantités — corrige.
 - Ne matche que les produits qui sont clairement de la marque Phytalessence
-- Les produits d'autres marques (Laroche Posay, Nettoyant, Listerine, Vicks, etc.) doivent avoir is_phytalessence=false
+- Les produits d'autres marques (Laroche Posay, Nettoyant, Listerine, Vicks, Dentifrice, etc.) doivent avoir is_phytalessence=false
 - Réponds UNIQUEMENT avec le JSON, sans markdown, sans commentaire
 - Si tu ne peux pas lire un prix, mets 0`;
 
