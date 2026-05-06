@@ -226,7 +226,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params as unknown as { id: number };
-      const { productIndex, catalogProductId, note } = req.body;
+      const { productIndex, catalogProductId, note, quantity, unitPrice } = req.body;
       const adminEmail = (req as any).user?.email || 'unknown';
 
       const transaction = await getTransactionById(id);
@@ -239,10 +239,12 @@ router.post(
         transactionId: id,
         productIndex,
         catalogProductId,
+        quantity,
+        unitPrice,
         adminEmail,
       });
 
-      const result = await forceMatchProduct(id, { productIndex, catalogProductId, note }, adminEmail);
+      const result = await forceMatchProduct(id, { productIndex, catalogProductId, note, quantity, unitPrice }, adminEmail);
 
       res.json({
         message: 'Produit forcé avec succès',
