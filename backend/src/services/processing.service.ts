@@ -162,6 +162,98 @@ export const processTransaction = async (
       eligibleAmount = matchingResult.eligibleAmount;
     }
 
+    // Step 1.5: Post-OCR duplicate detection (Layer 3 + Layer 4 with extracted data)
+    // The webhook-time anti-fraud Layers 3/4 are skipped when Snapss sends an
+    // image-only payload (totalAmount=0, products=[]). Re-run them here with the
+    // values Claude extracted, EXCLUDING the current transaction. Compare only
+    // against finalised transactions (SUCCESS / PARTIAL) to avoid a domino effect
+    // when several scans arrive in parallel.
+    const reloadedTx = await getTransactionById(transactionId);
+    const finalTotalAmount = Number(reloadedTx?.totalAmount) || 0;
+    const userEmailLc = transaction.userEmail.toLowerCase();
+
+    if (finalTotalAmount > 0) {
+      const fingerprintFromMatched = (mp: unknown): string => {
+        if (!Array.isArray(mp)) return '';
+        return mp
+          .map((m: any) => {
+            const tp = m?.ticketProduct || {};
+            const name = (m?.matchedProductName || tp.name || tp.rawText || '').toLowerCase().trim();
+            return name.replace(/[\s.\-\/,;:()]+/g, '').replace(/(.)\1+/g, '$1');
+          })
+          .filter(Boolean)
+          .sort()
+          .join('|');
+      };
+
+      const currentFingerprint = fingerprintFromMatched(matchedProductsData);
+      const finalisedStatus = [TransactionStatus.SUCCESS, TransactionStatus.PARTIAL];
+
+      // Layer 3 post-OCR: same user + same total within 5 minutes
+      const since = new Date(Date.now() - 5 * 60 * 1000);
+      const layer3Hit = await prisma.transaction.findFirst({
+        where: {
+          id: { not: transactionId },
+          userEmail: userEmailLc,
+          totalAmount: new Prisma.Decimal(finalTotalAmount),
+          createdAt: { gte: since },
+          status: { in: finalisedStatus },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      let duplicateHit = layer3Hit;
+      let duplicateLayer: 'L3' | 'L4' | null = layer3Hit ? 'L3' : null;
+
+      // Layer 4 post-OCR: same user + same total + same product fingerprint (any time)
+      if (!duplicateHit && currentFingerprint) {
+        const candidates = await prisma.transaction.findMany({
+          where: {
+            id: { not: transactionId },
+            userEmail: userEmailLc,
+            totalAmount: new Prisma.Decimal(finalTotalAmount),
+            status: { in: finalisedStatus },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        });
+        const match = candidates.find(c => fingerprintFromMatched(c.matchedProducts) === currentFingerprint);
+        if (match) {
+          duplicateHit = match;
+          duplicateLayer = 'L4';
+        }
+      }
+
+      if (duplicateHit && duplicateLayer) {
+        logger.warn(`Post-OCR ${duplicateLayer} duplicate — points NOT awarded`, {
+          transactionId,
+          userEmail: userEmailLc,
+          totalAmount: finalTotalAmount,
+          duplicateOfId: duplicateHit.id,
+          layer: duplicateLayer,
+        });
+        await updateTransaction(transactionId, {
+          matchedProducts: matchedProductsData as Prisma.InputJsonValue,
+          eligibleAmount: new Prisma.Decimal(0),
+          pointsCalculated: 0,
+          status: TransactionStatus.FAILED,
+          errorMessage: `Doublon détecté après OCR (${duplicateLayer}) — duplicate de transaction #${duplicateHit.id}`,
+          processedAt: new Date(),
+        });
+        return {
+          success: false,
+          transactionId,
+          matchedProducts: 0,
+          unmatchedProducts: matchedProductsData.length,
+          eligibleAmount: 0,
+          pointsCalculated: 0,
+          notificationSent: false,
+          error: `Duplicate of transaction #${duplicateHit.id} (${duplicateLayer})`,
+          duration: Date.now() - startTime,
+        };
+      }
+    }
+
     // Step 2: Calculate points
     logger.info('Calculating points', {
       transactionId,
